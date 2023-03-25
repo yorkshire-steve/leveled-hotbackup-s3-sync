@@ -4,6 +4,7 @@ Python tool which can backup and restore leveled hotbackups with S3
 ## Quick Start
 ```
 python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 python app.py -l /local/path/to/leveled -s s3://bucket/hotbackup/
 ```
