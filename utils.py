@@ -1,9 +1,13 @@
+import hashlib
 import os
 import os.path
 from urllib.parse import urlparse
 
 import boto3
 from botocore.errorfactory import ClientError
+import erlang
+
+MAX_SHA_INT = 1461501637330902918203684832716283019655932542975
 
 def parse_s3_url(path: str) -> dict:
     parsed_url = urlparse(path)
@@ -65,3 +69,25 @@ def local_path_exists(local_path: str) -> bool:
 def ensure_parent_dir_exists(local_path: str) -> None:
     parent_dir = os.path.dirname(local_path)
     os.makedirs(parent_dir, exist_ok=True)
+
+def riak_ring_indexes(ring_size: int) -> list:
+    ring_increment = riak_ring_increment(ring_size)
+    return [ring_increment*n+n for n in range(0,ring_size)]
+
+def riak_ring_increment(ring_size: int) -> int:
+    return MAX_SHA_INT // ring_size
+
+def hash_bucket_key(bucket: bytes, bkey: bytes, buckettype: bytes = None) -> int:
+    if buckettype:
+        bk = ((erlang.OtpErlangBinary(buckettype,bits=8), erlang.OtpErlangBinary(bucket,bits=8)), erlang.OtpErlangBinary(bkey,bits=8))
+    else:
+        bk = (erlang.OtpErlangBinary(bucket,bits=8), erlang.OtpErlangBinary(bkey,bits=8))
+    hashed_bk = hashlib.sha1(erlang.term_to_binary(bk)).digest()
+    return int.from_bytes(hashed_bk, byteorder="big")
+
+def find_primary_partition(ring_size: int, bucket: bytes, bkey: bytes, buckettype: bytes = None) -> int:
+    key_index = hash_bucket_key(bucket, bkey, buckettype)
+    ring = riak_ring_indexes(ring_size)
+    ring_increment = riak_ring_increment(ring_size)
+    ring_position = (key_index // ring_increment + 1) % ring_size
+    return ring[ring_position]
