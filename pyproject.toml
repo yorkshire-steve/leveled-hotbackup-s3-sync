@@ -6,6 +6,8 @@ authors = ["yorkshire-steve"]
 license = "Apache-2.0"
 readme = "README.md"
 packages = [{include = "leveled_hotbackup_s3_sync"}]
+repository = 'https://github.com/yorkshire-steve/leveled-hotbackup-s3-sync'
+keywords = ['riak', 'leveled', 'backup', 's3']
 
 [tool.poetry.dependencies]
 python = "^3.8"
