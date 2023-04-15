@@ -32,9 +32,16 @@ jobs:
       - name: poetry build
         run: poetry build --format=wheel
 
+      - name: poetry config
+        run: |
+          poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
             dist/*
+
+      - name: poetry publish
+        run: poetry publish
