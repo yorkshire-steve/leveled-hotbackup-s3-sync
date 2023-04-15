@@ -2,12 +2,10 @@
 A Python 3.8 tool which can backup and restore leveled hotbackups with Amazon S3
 
 ## Quick Start
-Download .whl file from [Github releases](https://github.com/yorkshire-steve/leveled-hotbackup-s3-sync/releases)
-
 ```
 python3.8 -m venv .venv
 source .venv/bin/activate
-pip install /path/to/wheel/file
+pip install leveled-hotbackup-s3-sync
 
 # Backup (default)
 python -m leveled_hotbackup_s3_sync -l /local/path/to/leveled/hotbackup -s s3://bucket/hotbackup/
