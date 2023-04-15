@@ -12,6 +12,9 @@ jobs:
     runs-on: "ubuntu-latest"
     if: github.repository == 'yorkshire-steve/leveled-hotbackup-s3-sync'
 
+    permissions:
+      contents: write
+
     steps:
       - name: checkout
         uses: actions/checkout@v3
