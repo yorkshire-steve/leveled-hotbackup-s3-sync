@@ -1,0 +1,44 @@
+name: ci
+on: push
+
+jobs:
+  lint:
+    name: "Lint CI"
+    runs-on: "ubuntu-latest"
+    if: github.repository == 'yorkshire-steve/leveled-hotbackup-s3-sync'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: install poetry
+        run: make install-poetry
+
+      - name: cache virtualenv
+        uses: actions/cache@v2
+        with:
+          path: |
+            .venv
+          key: ${{ runner.os }}-poetry-v2-${{ hashFiles('./poetry.lock') }}
+
+      - name: install dependencies
+        run: make install
+
+      - name: black
+        run: make black-check
+
+      - name: isort
+        run: make isort-check
+
+      - name: pylint
+        run: make pylint-ci
+
+      - name: mypy
+        run: make mypy

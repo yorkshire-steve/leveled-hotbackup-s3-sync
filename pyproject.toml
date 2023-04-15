@@ -1,0 +1,98 @@
+[tool.poetry]
+name = "leveled-hotbackup-s3-sync"
+version = "0.0.0"
+description = "Tool to syncrhonise LevelEd hotbackup files to Amazon S3"
+authors = ["yorkshire-steve"]
+license = "Apache-2.0"
+readme = "README.md"
+packages = [{include = "leveled_hotbackup_s3_sync"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+erlang-py = "^2.0.5"
+boto3 = "^1.26.114"
+pure-cdb = "^4.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+black = "^23.3.0"
+isort = "^5.12.0"
+pylint = "^2.17.2"
+coverage = "^7.2.3"
+mypy = "^1.2.0"
+
+[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310']
+
+[tool.pylint.main]
+ignore-paths = [
+    '.venv/.*',
+    '.*/?\.git/.*',
+    'reports/.*',
+]
+py-version = "3.9"
+recursive = true
+
+[tool.pylint.messages_control]
+max-line-length = 120
+min-similarity-lines = 10
+disable = [
+    "missing-class-docstring",
+    "missing-module-docstring",
+    "missing-function-docstring",
+]
+
+
+[tool.coverage.run]
+branch = true
+omit = [
+    ".venv/*",
+]
+source = [
+    "."
+]
+
+[tool.coverage.report]
+# Regexes for lines to exclude from consideration
+exclude_lines = [
+    "pragma: no cover",
+    "from .*",
+    "import .*"
+]
+sort = "-cover"
+ignore_errors = true
+precision = 2
+fail_under = 85
+show_missing = true
+
+[tool.coverage.xml]
+output = "reports/coverage.xml"
+
+[tool.mypy]
+python_version = "3.8"
+warn_unused_configs = true
+show_error_codes = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"
+
+
+[tool.poetry-dynamic-versioning]
+enable = true
+metadata = false
+vcs = "git"
+style = "pep440"
+format-jinja = """
+    {%- if distance == 0 -%}
+        {{ serialize_pep440(base, stage, revision) }}
+    {%- else -%}
+        {{ serialize_pep440(bump_version(base), stage, revision, dev=timestamp) }}
+    {%- endif -%}
+"""
+
+[build-system]
+requires = ["poetry-core", "poetry-dynamic-versioning"]
+build-backend = "poetry_dynamic_versioning.backend"
