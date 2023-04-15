@@ -1,2 +1,7 @@
 __pycache__
-venv
+.mypy_cache
+.pytest_cache
+.venv
+reports/
+.coverage
+dist/

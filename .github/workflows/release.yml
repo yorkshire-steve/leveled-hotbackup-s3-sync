@@ -1,0 +1,37 @@
+---
+name: "tagged-release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  tagged-release:
+    name: "Tagged Release"
+    runs-on: "ubuntu-latest"
+    if: github.repository == 'yorkshire-steve/leveled-hotbackup-s3-sync'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+
+      - name: install poetry
+        run: make install-poetry
+
+      - name: poetry build
+        run: poetry build --format=wheel
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          files: |
+            dist/*
