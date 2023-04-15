@@ -20,7 +20,7 @@ from leveled_hotbackup_s3_sync.manifest import (
 from leveled_hotbackup_s3_sync.utils import swap_path
 
 
-def backup(source: str, destination: str, endpoint: str) -> None:
+def backup(source: str, destination: str, create_hints_files: bool, endpoint: str) -> None:
     s3_manifests = []
     partitions = os.listdir(source)
     for partition in partitions:
@@ -30,7 +30,7 @@ def backup(source: str, destination: str, endpoint: str) -> None:
 
         new_manifest = []
         for journal in manifest:
-            maybe_upload_journal(journal, source, destination, endpoint)
+            maybe_upload_journal(journal, source, destination, create_hints_files, endpoint)
             new_manifest.append(update_journal_filename(journal, source, destination))
 
         s3_path = upload_new_manifest(new_manifest, partition, destination, endpoint)
@@ -107,12 +107,13 @@ def main() -> None:
         default=None,
         help="VersionId of MANIFESTS to restore from",
     )
+    parser.add_argument("--hintsfiles", action="store_true", help="Create hints CDB files on backup")
     args = parser.parse_args()
 
     if args.action == "backup":
         if not args.local:
             raise ValueError("Must specify local directory to backup from")
-        backup(args.local, args.s3, args.endpoint)
+        backup(args.local, args.s3, args.hintsfiles, args.endpoint)
 
     if args.action == "list":
         list_versions(args.s3, args.endpoint)

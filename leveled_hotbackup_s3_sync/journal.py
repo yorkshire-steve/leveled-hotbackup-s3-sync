@@ -17,20 +17,24 @@ def list_keys(filename: str) -> list:
         return [erlang.binary_to_term(x) for x in reader.keys()]
 
 
-def maybe_upload_journal(journal: tuple, source: str, destination: str, endpoint: str) -> None:
+def maybe_upload_journal(
+    journal: tuple, source: str, destination: str, create_hints_files: bool, endpoint: str
+) -> None:
     journal_filename = f"{journal[1].decode('utf-8')}.cdb"
-    hints_filename = f"{journal[1].decode('utf-8')}.hints.cdb"
     journal_s3_path = swap_path(journal_filename, source, destination)
-    hints_s3_path = swap_path(hints_filename, source, destination)
 
     if s3_path_exists(journal_s3_path, endpoint):
         print(f"{journal_s3_path} already exists")
     else:
-        journal_keys = list_keys(journal_filename)
-        create_hints_file(hints_filename, journal_keys)
+        if create_hints_files:
+            hints_filename = f"{journal[1].decode('utf-8')}.hints.cdb"
+            hints_s3_path = swap_path(hints_filename, source, destination)
 
-        print(f"Uploading {hints_filename} to {hints_s3_path}")
-        upload_file_to_s3(hints_filename, hints_s3_path, endpoint)
+            journal_keys = list_keys(journal_filename)
+            create_hints_file(hints_filename, journal_keys)
+
+            print(f"Uploading {hints_filename} to {hints_s3_path}")
+            upload_file_to_s3(hints_filename, hints_s3_path, endpoint)
 
         print(f"Uploading {journal_filename} to {journal_s3_path}")
         upload_file_to_s3(journal_filename, journal_s3_path, endpoint)
