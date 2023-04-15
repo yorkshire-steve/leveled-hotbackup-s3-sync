@@ -6,8 +6,8 @@ install:
 	poetry install --sync
 
 install-poetry:
-	python3.8 -m pip install --user --upgrade pip && \
-	python3.8 -m pip install --user poetry==1.4.2 && \
+	python3.8 -m pip install --upgrade pip
+	python3.8 -m pip install poetry==1.4.2
 	poetry self add "poetry-dynamic-versioning[plugin]"
 
 update:
