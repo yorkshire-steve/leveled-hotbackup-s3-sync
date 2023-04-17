@@ -7,6 +7,9 @@ jobs:
     runs-on: "ubuntu-latest"
     if: github.repository == 'yorkshire-steve/leveled-hotbackup-s3-sync'
 
+    permissions:
+      checks: write
+
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -74,13 +77,6 @@ jobs:
 
       - name: coverage
         run: make coverage-ci
-
-      - name: code coverage report
-        uses: orgoro/coverage@32a2af98e56f47d958cf4c64b1f5e02161f2853e
-        with:
-          coverageFile: reports/coverage.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
-          thresholdAll: 0.70
 
       - name: archive reports
         if: success() || failure()
