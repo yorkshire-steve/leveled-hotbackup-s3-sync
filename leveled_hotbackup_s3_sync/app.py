@@ -1,6 +1,7 @@
 import argparse
 import os
 import os.path
+from typing import Union
 from urllib.parse import urlparse
 
 from leveled_hotbackup_s3_sync.journal import (
@@ -20,7 +21,7 @@ from leveled_hotbackup_s3_sync.manifest import (
 from leveled_hotbackup_s3_sync.utils import swap_path
 
 
-def backup(source: str, destination: str, create_hints_files: bool, endpoint: str) -> None:
+def backup(source: str, destination: str, create_hints_files: bool, endpoint: Union[str, None]) -> None:
     s3_manifests = []
     partitions = os.listdir(source)
     for partition in partitions:
@@ -38,7 +39,7 @@ def backup(source: str, destination: str, create_hints_files: bool, endpoint: st
     upload_manifests(s3_manifests, destination, endpoint)
 
 
-def restore(source: str, version: str, destination: str, endpoint: str) -> None:
+def restore(source: str, version: str, destination: str, endpoint: Union[str, None]) -> None:
     manifests_list = get_manifests(source, version, endpoint)
     for manifest_path_version in manifests_list:
         print(f"Starting to process {manifest_path_version[0]}")
@@ -52,7 +53,7 @@ def restore(source: str, version: str, destination: str, endpoint: str) -> None:
         save_local_manifest(new_manifest, manifest_filename)
 
 
-def list_versions(destination: str, endpoint: str) -> None:
+def list_versions(destination: str, endpoint: Union[str, None]) -> None:
     manifest_versions = get_manifests_versions(destination, endpoint)
     for manifest in manifest_versions:
         print(manifest["LastModified"], manifest["VersionId"])

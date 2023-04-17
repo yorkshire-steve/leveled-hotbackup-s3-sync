@@ -24,7 +24,7 @@ def swap_path(filename: str, source: str, destination: str) -> str:
     return os.path.join(destination, os.path.relpath(filename, source))
 
 
-def s3_path_exists(s3_path: str, endpoint: str) -> bool:
+def s3_path_exists(s3_path: str, endpoint: Union[str, None]) -> bool:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(s3_path)
     try:
@@ -36,33 +36,33 @@ def s3_path_exists(s3_path: str, endpoint: str) -> bool:
     return True
 
 
-def upload_file_to_s3(source: str, destination: str, endpoint: str) -> None:
+def upload_file_to_s3(source: str, destination: str, endpoint: Union[str, None]) -> None:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(destination)
     s3_client.upload_file(source, bucket, key)
 
 
-def upload_bytes_to_s3(data: bytes, destination: str, endpoint: str) -> str:
+def upload_bytes_to_s3(data: bytes, destination: str, endpoint: Union[str, None]) -> str:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(destination)
     response = s3_client.put_object(Body=data, Bucket=bucket, Key=key)
     return response["VersionId"]
 
 
-def list_s3_object_versions(s3_path: str, endpoint: str) -> list:
+def list_s3_object_versions(s3_path: str, endpoint: Union[str, None]) -> list:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(s3_path)
     response = s3_client.list_object_versions(Bucket=bucket, Prefix=key)
     return response["Versions"]
 
 
-def download_file_from_s3(s3_path: str, local_path: str, endpoint: str) -> None:
+def download_file_from_s3(s3_path: str, local_path: str, endpoint: Union[str, None]) -> None:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(s3_path)
     s3_client.download_file(bucket, key, local_path)
 
 
-def download_bytes_from_s3(s3_path: str, endpoint: str, version: Union[str, None] = None) -> bytes:
+def download_bytes_from_s3(s3_path: str, endpoint: Union[str, None], version: Union[str, None] = None) -> bytes:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(s3_path)
     if version:

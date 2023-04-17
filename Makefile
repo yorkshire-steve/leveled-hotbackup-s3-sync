@@ -36,18 +36,18 @@ coverage-cleanup:
 	rm -f .coverage* || true
 
 coverage-ci-test:
-	poetry run coverage run -m pytest --color=yes -v --junit-xml=./reports/junit/mesh.xml
+	poetry run coverage run -m pytest --color=yes -v --junit-xml=./reports/junit/output.xml
 
 coverage-report:
 	@poetry run coverage report; \
 	poetry run coverage xml;
 
-coverage: coverage-cleanup coverage-test coverage-report
+coverage: coverage-cleanup testdata coverage-test coverage-report
 
 coverage-test:
 	poetry run coverage run -m pytest
 
-coverage-ci: coverage-cleanup coverage-ci-test coverage-report
+coverage-ci: coverage-cleanup testdata coverage-ci-test coverage-report
 
 clean:
 	rm -rf ./dist || true
@@ -65,3 +65,6 @@ localstack:
 
 localstack-down:
 	cd localstack && docker compose down --remove-orphans || true
+
+testdata:
+	tar xf ./leveled_hotbackup_s3_sync/tests/data/testdata.tgz -C /tmp
