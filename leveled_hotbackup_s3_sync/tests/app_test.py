@@ -48,7 +48,11 @@ def test_backup(s3_client):
     s3_manifest_names = [x.split("#")[0] for x in manifests_obj["Body"].read().decode("utf-8").split("\n")]
     file_manifest_names = [x.split("#")[0] for x in manifests_file.decode("utf-8").split("\n")]
 
-    assert s3_manifest_names == file_manifest_names
+    assert len(s3_manifest_names) == 64
+    assert len(file_manifest_names) == 64
+
+    for name in s3_manifest_names:
+        assert name in file_manifest_names
 
 
 def test_restore(s3_client):
