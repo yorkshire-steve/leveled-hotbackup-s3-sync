@@ -1,3 +1,5 @@
+from typing import Union
+
 import cdblib
 import erlang
 
@@ -18,7 +20,7 @@ def list_keys(filename: str) -> list:
 
 
 def maybe_upload_journal(
-    journal: tuple, source: str, destination: str, create_hints_files: bool, endpoint: str
+    journal: tuple, source: str, destination: str, create_hints_files: bool, endpoint: Union[str, None]
 ) -> None:
     journal_filename = f"{journal[1].decode('utf-8')}.cdb"
     journal_s3_path = swap_path(journal_filename, source, destination)
@@ -40,7 +42,7 @@ def maybe_upload_journal(
         upload_file_to_s3(journal_filename, journal_s3_path, endpoint)
 
 
-def maybe_download_journal(journal: tuple, source: str, destination: str, endpoint: str) -> None:
+def maybe_download_journal(journal: tuple, source: str, destination: str, endpoint: Union[str, None]) -> None:
     journal_filename = f"{journal[1].decode('utf-8')}.cdb"
     journal_local_path = swap_path(journal_filename, source, destination)
 

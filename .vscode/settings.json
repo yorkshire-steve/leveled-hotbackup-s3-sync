@@ -21,9 +21,10 @@
     "python.linting.mypyEnabled": true,
     "python.linting.enabled": true,
     "python.testing.pytestArgs": [
-        "src"
+        "leveled_hotbackup_s3_sync"
     ],
     "python.defaultInterpreterPath": ".venv/bin/python",
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestPath": ".venv/bin/pytest"
 }

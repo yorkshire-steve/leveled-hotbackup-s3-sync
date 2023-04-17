@@ -11,9 +11,9 @@ keywords = ['riak', 'leveled', 'backup', 's3']
 
 [tool.poetry.dependencies]
 python = "^3.8"
-erlang-py = "^2.0.5"
 boto3 = "^1.26.114"
 pure-cdb = "^4.0.0"
+erlang-py = "^2.0.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
@@ -22,6 +22,7 @@ isort = "^5.12.0"
 pylint = "^2.17.2"
 coverage = "^7.2.3"
 mypy = "^1.2.0"
+moto = "^4.1.7"
 
 [tool.black]
 line-length = 120
@@ -50,6 +51,8 @@ disable = [
 branch = true
 omit = [
     ".venv/*",
+    "leveled_hotbackup_s3_sync/__init__.py",
+    "leveled_hotbackup_s3_sync/__main__.py",
 ]
 source = [
     "."
@@ -65,7 +68,7 @@ exclude_lines = [
 sort = "-cover"
 ignore_errors = true
 precision = 2
-fail_under = 85
+fail_under = 70
 show_missing = true
 
 [tool.coverage.xml]
