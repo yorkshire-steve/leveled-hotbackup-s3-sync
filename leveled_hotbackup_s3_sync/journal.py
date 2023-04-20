@@ -1,8 +1,8 @@
 from typing import Union
 
 import cdblib
-import erlang
 
+from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.hints import create_hints_file
 from leveled_hotbackup_s3_sync.utils import (
     download_file_from_s3,

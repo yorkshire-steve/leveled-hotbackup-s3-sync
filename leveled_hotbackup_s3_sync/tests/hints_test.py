@@ -1,8 +1,8 @@
 import tempfile
 
 import cdblib
-import erlang
 
+from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.hints import create_hints_file, get_sqn
 
 
