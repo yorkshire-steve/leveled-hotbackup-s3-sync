@@ -1,6 +1,8 @@
 name: ci
 on:
-  push: branches
+  push:
+    tags-ignore:
+      - '**'
 
 jobs:
   lint:
