@@ -171,8 +171,8 @@ def test_upload_new_manifest(s3_client):
 
     s3_obj = s3_client.get_object(Bucket="test", Key="upload_new_manifest/0/journal/journal_manifest/0.man")
 
-    assert manifest_name.split("#")[0] == "s3://test/upload_new_manifest/0/journal/journal_manifest/0.man"
-    assert manifest_name.split("#")[1] == s3_obj["VersionId"]
+    assert manifest_name[0] == "s3://test/upload_new_manifest/0/journal/journal_manifest/0.man"
+    assert manifest_name[1] == s3_obj["VersionId"]
     s3_data = s3_obj["Body"].read()
     assert (
         s3_data == b"\x83P\x00\x00\x02\x9bx\x9c\xad\x91;N\x031\x10@\x9d\x9f\x84D\xc1I&\xeb\xb5\xc7c\xbbC4\x14\xb4"
@@ -189,20 +189,22 @@ def test_upload_new_manifest(s3_client):
 
 def test_upload_manifests(s3_client):
     manifests = [
-        "s3://example/path1#version1",
-        "s3://example/path2#version2",
-        "s3://example/path3#version3",
-        "s3://example/path4#version4",
-        "s3://example/path5#version5",
+        ("s3://example/path1", "version1"),
+        ("s3://example/path2", "version2"),
+        ("s3://example/path3", "version3"),
+        ("s3://example/path4", "version4"),
+        ("s3://example/path5", "version5"),
     ]
     upload_manifests(manifests, "s3://test/upload_manifests", None)
     manifest_data = s3_client.get_object(Bucket="test", Key="upload_manifests/MANIFESTS")
 
-    assert (
-        manifest_data["Body"].read()
-        == b"s3://example/path1#version1\ns3://example/path2#version2\ns3://example/path3#version3\n"
-        b"s3://example/path4#version4\ns3://example/path5#version5"
-    )
+    assert erlang.binary_to_term(manifest_data["Body"].read()) == [
+        (b"s3://example/path1", b"version1"),
+        (b"s3://example/path2", b"version2"),
+        (b"s3://example/path3", b"version3"),
+        (b"s3://example/path4", b"version4"),
+        (b"s3://example/path5", b"version5"),
+    ]
 
 
 def test_get_manifests_versions(s3_client):
@@ -230,12 +232,12 @@ def test_get_manifests(s3_client):
 
     assert len(manifests) == 64
     assert manifests[0] == (
-        "s3://test/hotbackup3/639406966332270026714112114313373821099470487552/journal/journal_manifest/0.man",
-        "b313eeee-c80d-4a5f-ade9-7630ffe7853c",
+        b"s3://test/hotbackup3/639406966332270026714112114313373821099470487552/journal/journal_manifest/0.man",
+        b"96fb3112-f250-415f-a278-721945738922",
     )
     assert manifests[63] == (
-        "s3://test/hotbackup3/730750818665451459101842416358141509827966271488/journal/journal_manifest/0.man",
-        "59ed5ac4-73d3-48e3-a4aa-50b94e77c69c",
+        b"s3://test/hotbackup3/730750818665451459101842416358141509827966271488/journal/journal_manifest/0.man",
+        b"f233890d-cf17-4d06-813b-6c7917270fdc",
     )
 
 

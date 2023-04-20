@@ -34,22 +34,24 @@ def backup(source: str, destination: str, create_hints_files: bool, endpoint: Un
             maybe_upload_journal(journal, source, destination, create_hints_files, endpoint)
             new_manifest.append(update_journal_filename(journal, source, destination))
 
-        s3_path = upload_new_manifest(new_manifest, partition, destination, endpoint)
-        s3_manifests.append(s3_path)
+        s3_entry = upload_new_manifest(new_manifest, partition, destination, endpoint)
+        s3_manifests.append(s3_entry)
     upload_manifests(s3_manifests, destination, endpoint)
 
 
 def restore(source: str, version: str, destination: str, endpoint: Union[str, None]) -> None:
     manifests_list = get_manifests(source, version, endpoint)
     for manifest_path_version in manifests_list:
-        print(f"Starting to process {manifest_path_version[0]}")
-        manifest = read_s3_manifest(manifest_path_version[0], manifest_path_version[1], endpoint)
+        print(f"Starting to process {manifest_path_version[0].decode('utf-8')}")
+        manifest = read_s3_manifest(
+            manifest_path_version[0].decode("utf-8"), manifest_path_version[1].decode("utf-8"), endpoint
+        )
 
         new_manifest = []
         for journal in manifest:
             maybe_download_journal(journal, source, destination, endpoint)
             new_manifest.append(update_journal_filename(journal, source, destination))
-        manifest_filename = swap_path(manifest_path_version[0], source, destination)
+        manifest_filename = swap_path(manifest_path_version[0].decode("utf-8"), source, destination)
         save_local_manifest(new_manifest, manifest_filename)
 
 
