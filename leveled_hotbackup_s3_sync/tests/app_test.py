@@ -14,6 +14,7 @@ from leveled_hotbackup_s3_sync.app import (
     main,
     restore,
 )
+from leveled_hotbackup_s3_sync.erlang import binary_to_term
 from leveled_hotbackup_s3_sync.journal import list_keys
 from leveled_hotbackup_s3_sync.manifest import read_manifest
 from leveled_hotbackup_s3_sync.utils import swap_path
@@ -43,10 +44,10 @@ def test_backup(s3_client):
 
     manifests_obj = s3_client.get_object(Bucket="test", Key="hotbackup3/MANIFESTS")
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/MANIFESTS"), "rb") as file_handle:
-        manifests_file = file_handle.read()
+        manifests_file = binary_to_term(file_handle.read())
 
-    s3_manifest_names = [x.split("#")[0] for x in manifests_obj["Body"].read().decode("utf-8").split("\n")]
-    file_manifest_names = [x.split("#")[0] for x in manifests_file.decode("utf-8").split("\n")]
+    s3_manifest_names = [x[0] for x in binary_to_term(manifests_obj["Body"].read())]
+    file_manifest_names = [x[0] for x in manifests_file]
 
     assert len(s3_manifest_names) == 64
     assert len(file_manifest_names) == 64
@@ -60,8 +61,8 @@ def test_restore(s3_client):
     response = s3_client.head_object(Bucket="test", Key="hotbackup3/MANIFESTS")
 
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/MANIFESTS"), "rb") as file_handle:
-        manifests_file = file_handle.read()
-    file_manifest_names = [x.split("#")[0] for x in manifests_file.decode("utf-8").split("\n")]
+        manifests_file = binary_to_term(file_handle.read())
+    file_manifest_names = [x[0].decode("utf-8") for x in manifests_file]
 
     with tempfile.TemporaryDirectory() as tmpdir:
         restore("s3://test/hotbackup3", response["VersionId"], tmpdir, None)
@@ -131,9 +132,8 @@ def test_main_backup_with_hints(patched_backup):
     patched_backup.assert_called_with("/local/path", "s3://bucket/path", True, None)
 
 
-@patch("leveled_hotbackup_s3_sync.app.backup")
 @patch("argparse._sys.argv", new=["python", "--s3", "s3://bucket/path"])
-def test_main_backup_no_local(_patched_backup):
+def test_main_backup_no_local():
     with pytest.raises(ValueError) as exc:
         main()
     assert str(exc.value) == "Must specify local directory to backup from"
@@ -149,23 +149,21 @@ def test_main_restore(patched_restore):
     patched_restore.assert_called_with("s3://bucket/path", "VERSIONID", "/local/path", None)
 
 
-@patch("leveled_hotbackup_s3_sync.app.restore")
 @patch(
     "argparse._sys.argv",
     new=["python", "--s3", "s3://bucket/path", "-v", "VERSIONID", "-a", "restore"],
 )
-def test_main_restore_no_local(_patched_restore):
+def test_main_restore_no_local():
     with pytest.raises(ValueError) as exc:
         main()
     assert str(exc.value) == "Must specify local directory to restore to"
 
 
-@patch("leveled_hotbackup_s3_sync.app.restore")
 @patch(
     "argparse._sys.argv",
     new=["python", "--local", "/local/path", "--s3", "s3://bucket/path", "-a", "restore"],
 )
-def test_main_restore_no_version(_patched_restore):
+def test_main_restore_no_version():
     with pytest.raises(ValueError) as exc:
         main()
     assert str(exc.value) == "Must specify VersionId of MANIFESTS file to restore from"
