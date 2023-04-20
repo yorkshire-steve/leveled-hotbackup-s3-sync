@@ -2,10 +2,10 @@ import os.path
 import tempfile
 
 import boto3
-import erlang
 import pytest
 from moto import mock_s3
 
+from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.journal import (
     list_keys,
     maybe_download_journal,

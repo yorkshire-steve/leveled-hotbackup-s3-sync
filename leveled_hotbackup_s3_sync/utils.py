@@ -5,8 +5,9 @@ from typing import Tuple, Union
 from urllib.parse import urlparse
 
 import boto3
-import erlang
 from botocore.errorfactory import ClientError
+
+from leveled_hotbackup_s3_sync import erlang
 
 MAX_SHA_INT = 1461501637330902918203684832716283019655932542975
 
@@ -97,7 +98,7 @@ def hash_bucket_key(bucket: bytes, bkey: bytes, buckettype: Union[bytes, None] =
             erlang.OtpErlangBinary(bkey, bits=8),
         )
     else:
-        bucket_key = (erlang.OtpErlangBinary(bucket, bits=8), erlang.OtpErlangBinary(bkey, bits=8))
+        bucket_key = (erlang.OtpErlangBinary(bucket, bits=8), erlang.OtpErlangBinary(bkey, bits=8))  # type: ignore
     hashed_bucket_key = hashlib.sha1(erlang.term_to_binary(bucket_key)).digest()
     return int.from_bytes(hashed_bucket_key, byteorder="big")
 

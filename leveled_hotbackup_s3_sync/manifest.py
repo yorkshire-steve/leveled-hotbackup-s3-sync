@@ -1,8 +1,7 @@
 import os.path
 from typing import Union
 
-import erlang
-
+from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.utils import (
     download_bytes_from_s3,
     ensure_parent_dir_exists,
@@ -25,14 +24,14 @@ def read_s3_manifest(s3_path: str, version: str, endpoint: Union[str, None]) -> 
 
 def save_local_manifest(new_manifest: list, filename: str) -> None:
     ensure_parent_dir_exists(filename)
-    manifest = erlang.term_to_binary(new_manifest)
+    manifest = erlang.term_to_binary(new_manifest, compressed=True)
     print(f"Saving new manifest to {filename}")
     with open(filename, "wb") as file_handle:
         file_handle.write(manifest)
 
 
 def upload_new_manifest(new_manifest: list, partition: str, destination: str, endpoint: Union[str, None]) -> str:
-    manifest = erlang.term_to_binary(new_manifest)
+    manifest = erlang.term_to_binary(new_manifest, compressed=True)
     s3_path = os.path.join(destination, partition, "journal/journal_manifest/0.man")
     print(f"Uploading new manifest to {s3_path}")
     version_id = upload_bytes_to_s3(manifest, s3_path, endpoint)
