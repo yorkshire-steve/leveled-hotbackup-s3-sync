@@ -2,7 +2,8 @@ import argparse
 import os
 import os.path
 from typing import Union
-from urllib.parse import urlparse
+
+from texttable import Texttable
 
 from leveled_hotbackup_s3_sync.journal import (
     maybe_download_journal,
@@ -13,12 +14,11 @@ from leveled_hotbackup_s3_sync.manifest import (
     get_manifests,
     get_manifests_versions,
     read_manifest,
-    read_s3_manifest,
     save_local_manifest,
     upload_manifests,
     upload_new_manifest,
 )
-from leveled_hotbackup_s3_sync.utils import swap_path
+from leveled_hotbackup_s3_sync.utils import check_endpoint_url, check_s3_url, swap_path
 
 
 def backup(source: str, destination: str, create_hints_files: bool, endpoint: Union[str, None]) -> None:
@@ -43,7 +43,7 @@ def restore(source: str, version: str, destination: str, endpoint: Union[str, No
     manifests_list = get_manifests(source, version, endpoint)
     for manifest_path_version in manifests_list:
         print(f"Starting to process {manifest_path_version[0].decode('utf-8')}")
-        manifest = read_s3_manifest(
+        manifest = read_manifest(
             manifest_path_version[0].decode("utf-8"), manifest_path_version[1].decode("utf-8"), endpoint
         )
 
@@ -57,22 +57,11 @@ def restore(source: str, version: str, destination: str, endpoint: Union[str, No
 
 def list_versions(destination: str, endpoint: Union[str, None]) -> None:
     manifest_versions = get_manifests_versions(destination, endpoint)
+    output_table = Texttable()
+    output_table.header(["LastModified", "VersionId"])
     for manifest in manifest_versions:
-        print(manifest["LastModified"], manifest["VersionId"])
-
-
-def check_s3_url(url: str) -> str:
-    parsed_url = urlparse(url)
-    if parsed_url.scheme != "s3":
-        raise ValueError
-    return url
-
-
-def check_endpoint_url(url: str) -> str:
-    parsed_url = urlparse(url)
-    if parsed_url.path != "":
-        raise ValueError
-    return url
+        output_table.add_row([manifest["LastModified"], manifest["VersionId"]])
+    print(output_table.draw())
 
 
 def main() -> None:

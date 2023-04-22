@@ -12,6 +12,30 @@ from leveled_hotbackup_s3_sync import erlang
 MAX_SHA_INT = 1461501637330902918203684832716283019655932542975
 
 
+def str_to_bytes(convert_str: str) -> bytes:
+    return convert_str.encode("utf-8")
+
+
+def is_s3_url(url: str) -> bool:
+    parsed_url = urlparse(url)
+    if parsed_url.scheme == "s3":
+        return True
+    return False
+
+
+def check_s3_url(url: str) -> str:
+    if not is_s3_url(url):
+        raise ValueError
+    return url
+
+
+def check_endpoint_url(url: str) -> str:
+    parsed_url = urlparse(url)
+    if parsed_url.path != "":
+        raise ValueError
+    return url
+
+
 def parse_s3_url(path: str) -> Tuple[str, str]:
     parsed_url = urlparse(path)
     if parsed_url.scheme != "s3":
@@ -94,11 +118,14 @@ def riak_ring_increment(ring_size: int) -> int:
 def hash_bucket_key(bucket: bytes, bkey: bytes, buckettype: Union[bytes, None] = None) -> int:
     if buckettype:
         bucket_key = (
-            (erlang.OtpErlangBinary(buckettype, bits=8), erlang.OtpErlangBinary(bucket, bits=8)),
-            erlang.OtpErlangBinary(bkey, bits=8),
+            (erlang.OtpErlangBinary(buckettype), erlang.OtpErlangBinary(bucket)),
+            erlang.OtpErlangBinary(bkey),
         )
     else:
-        bucket_key = (erlang.OtpErlangBinary(bucket, bits=8), erlang.OtpErlangBinary(bkey, bits=8))  # type: ignore
+        bucket_key = (
+            erlang.OtpErlangBinary(bucket),
+            erlang.OtpErlangBinary(bkey),
+        )  # type:ignore
     hashed_bucket_key = hashlib.sha1(erlang.term_to_binary(bucket_key)).digest()
     return int.from_bytes(hashed_bucket_key, byteorder="big")
 
@@ -109,3 +136,104 @@ def find_primary_partition(ring_size: int, bucket: bytes, bkey: bytes, buckettyp
     ring_increment = riak_ring_increment(ring_size)
     ring_position = (key_index // ring_increment + 1) % ring_size
     return ring[ring_position]
+
+
+def guess_local_ringsize(local_path: str) -> int:
+    return len(os.listdir(local_path))
+
+
+def create_journal_key(sqn: int, bucket: bytes, bkey: bytes, buckettype: Union[bytes, None] = None) -> bytes:
+    if buckettype:
+        typed_bucket = (
+            erlang.OtpErlangBinary(buckettype),
+            erlang.OtpErlangBinary(bucket),
+        )
+    else:
+        typed_bucket = erlang.OtpErlangBinary(bucket)  # type: ignore
+    journal_key = (
+        sqn,
+        erlang.OtpErlangAtom(b"stnd"),
+        (
+            erlang.OtpErlangAtom(b"o_rkv"),
+            typed_bucket,
+            erlang.OtpErlangBinary(bkey),
+            erlang.OtpErlangAtom(b"null"),
+        ),
+    )
+    return erlang.term_to_binary(journal_key)
+
+
+# pylint: disable=too-few-public-methods
+class RiakObject:
+    def __init__(self):
+        self.vector_clocks = []
+        self.siblings = []
+
+    def _decode_maybe_binary(self, data: bytes):
+        is_binary = int.from_bytes(data[:1], "big")
+        if is_binary:
+            return data[1:]
+        return erlang.binary_to_term(data[1:])
+
+    def _decode_metadata(self, metadata_bin: bytes) -> dict:
+        metadata = {}
+        offset = 0
+        lm_mega = int.from_bytes(metadata_bin[offset : offset + 4], "big")
+        offset += 4
+        lm_secs = int.from_bytes(metadata_bin[offset : offset + 4], "big")
+        offset += 4
+        lm_micro = int.from_bytes(metadata_bin[offset : offset + 4], "big")
+        offset += 4
+        metadata["last_modified"] = str(lm_mega) + str(lm_secs).zfill(6) + "." + str(lm_micro).zfill(6)
+
+        vtag_len = int.from_bytes(metadata_bin[offset : offset + 1], "big")
+        offset += 1
+        metadata["vtag"] = metadata_bin[offset : offset + vtag_len]  # type:ignore
+        offset += vtag_len
+
+        metadata["deleted"] = int.from_bytes(metadata_bin[offset : offset + 1], "big")  # type:ignore
+        offset += 1
+
+        while offset < len(metadata_bin):
+            key_len = int.from_bytes(metadata_bin[offset : offset + 4], "big")
+            offset += 4
+            key = self._decode_maybe_binary(metadata_bin[offset : offset + key_len]).decode("utf-8")
+            offset += key_len
+
+            val_len = int.from_bytes(metadata_bin[offset : offset + 4], "big")
+            offset += 4
+            val = self._decode_maybe_binary(metadata_bin[offset : offset + val_len])
+            offset += val_len
+
+            metadata[key] = val
+
+        return metadata
+
+    def decode(self, obj_bin: bytes) -> None:
+        offset = 0
+        magic_number = int.from_bytes(obj_bin[offset : offset + 1], "big")
+        offset += 1
+        if magic_number != 53:
+            raise ValueError("Decode error, wrong magic number")
+        object_version = int.from_bytes(obj_bin[offset : offset + 1], "big")
+        offset += 1
+        if object_version != 1:
+            raise ValueError("Decode error, wrong object version")
+        vector_clocks_len = int.from_bytes(obj_bin[offset : offset + 4], "big")
+        offset += 4
+        self.vector_clocks = erlang.binary_to_term(obj_bin[offset : offset + vector_clocks_len])
+        offset += vector_clocks_len
+        siblings_count = int.from_bytes(obj_bin[offset : offset + 4], "big")
+        offset += 4
+        for _ in range(siblings_count):
+            value_len = int.from_bytes(obj_bin[offset : offset + 4], "big")
+            offset += 4
+            value = self._decode_maybe_binary(obj_bin[offset : offset + value_len])
+            offset += value_len
+            metadata_len = int.from_bytes(obj_bin[offset : offset + 4], "big")
+            offset += 4
+            metadata = self._decode_metadata(obj_bin[offset : offset + metadata_len])
+            offset += metadata_len
+            self.siblings.append({"value": value, "metadata": metadata})
+        if offset != len(obj_bin):
+            raise ValueError("Decode error, unexpected data")

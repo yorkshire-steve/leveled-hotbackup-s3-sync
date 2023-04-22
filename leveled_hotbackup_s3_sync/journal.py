@@ -1,6 +1,8 @@
+import zlib
 from typing import Union
 
 import cdblib
+import lz4.frame
 
 from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.hints import create_hints_file
@@ -17,6 +19,36 @@ from leveled_hotbackup_s3_sync.utils import (
 def list_keys(filename: str) -> list:
     with cdblib.Reader.from_file_path(filename) as reader:
         return [erlang.binary_to_term(x) for x in reader.keys()]
+
+
+def decode_journal_object(journal_key: bytes, journal_obj: bytes):
+    journal_binary_len = len(journal_obj) - 5
+    key_change_length = int.from_bytes(journal_obj[journal_binary_len : journal_binary_len + 4], "big")
+    value_type = int.from_bytes(journal_obj[-1:], "big")
+    is_binary, is_compressed, is_lz4 = decode_valuetype(value_type)
+
+    crc = int.from_bytes(journal_obj[:4], "big")
+    calc_crc = zlib.crc32(journal_key + journal_obj[4:])
+    if crc != calc_crc:
+        raise ValueError("CRC error retrieving object")
+
+    journal_binary = journal_obj[4 : journal_binary_len - key_change_length]
+    if is_compressed:
+        if is_lz4:
+            journal_binary = lz4.frame.decompress(journal_binary)
+        else:
+            journal_binary = zlib.decompress(journal_binary)
+    if is_binary:
+        return journal_binary
+    else:
+        return erlang.binary_to_term(journal_binary)
+
+
+def decode_valuetype(value_type: int) -> tuple:
+    is_compressed = value_type & 1 == 1
+    is_binary = value_type & 2 == 2
+    is_lz4 = value_type & 4 == 4
+    return is_binary, is_compressed, is_lz4
 
 
 def maybe_upload_journal(
