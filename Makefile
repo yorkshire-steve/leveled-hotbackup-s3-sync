@@ -3,7 +3,7 @@ SHELL:=/bin/bash -O globstar
 .PHONY: localstack localstack-down
 
 install:
-	poetry install --sync
+	poetry install --sync --all-extras
 
 install-poetry:
 	python3.8 -m pip install --upgrade pip

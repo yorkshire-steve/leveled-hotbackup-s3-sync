@@ -10,8 +10,9 @@ from leveled_hotbackup_s3_sync.manifest import (
     get_manifests,
     get_manifests_path,
     get_manifests_versions,
+    get_partition_manifest,
+    guess_s3_ringsize,
     read_manifest,
-    read_s3_manifest,
     save_local_manifest,
     upload_manifests,
     upload_new_manifest,
@@ -84,7 +85,7 @@ MANIFEST_DATA = [
 ]
 
 
-def test_read_manifest():
+def test_read_manifest(s3_client):
     manifest_filename = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_manifest/0.man"
     manifest = read_manifest(manifest_filename)
 
@@ -105,13 +106,60 @@ def test_read_manifest():
         == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706"
     )
 
-
-def test_read_s3_manifest(s3_client):
-    manifest_filename = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_manifest/0.man"
     s3_client.upload_file(manifest_filename, "test", "reads3manifest")
     response = s3_client.head_object(Bucket="test", Key="reads3manifest")
 
-    manifest = read_s3_manifest("s3://test/reads3manifest", response["VersionId"], None)
+    manifest = read_manifest("s3://test/reads3manifest", response["VersionId"], None)
+
+    assert len(manifest) == 3
+    assert manifest[0][0] == 972
+    assert manifest[1][0] == 486
+    assert manifest[2][0] == 0
+    assert (
+        manifest[0][1]
+        == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a"
+    )
+    assert (
+        manifest[1][1]
+        == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/486_71e4b785-9c5d-4f3a-bb4a-d2e3fdc66945"
+    )
+    assert (
+        manifest[2][1]
+        == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706"
+    )
+
+
+def test_get_partition_manifest(s3_client):
+    manifest = get_partition_manifest("/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59", 0)
+
+    assert len(manifest) == 3
+    assert manifest[0][0] == 972
+    assert manifest[1][0] == 486
+    assert manifest[2][0] == 0
+    assert (
+        manifest[0][1]
+        == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a"
+    )
+    assert (
+        manifest[1][1]
+        == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/486_71e4b785-9c5d-4f3a-bb4a-d2e3fdc66945"
+    )
+    assert (
+        manifest[2][1]
+        == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706"
+    )
+
+    manifest_filename = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_manifest/0.man"
+    s3_client.upload_file(manifest_filename, "test", "get_partition_manifest/0/journal/journal_manifest/0.man")
+    response = s3_client.head_object(Bucket="test", Key="get_partition_manifest/0/journal/journal_manifest/0.man")
+
+    manifests = [
+        ("s3://test/get_partition_manifest/0/journal/journal_manifest/0.man", response["VersionId"]),
+    ]
+    upload_manifests(manifests, "s3://test/get_partition_manifest/", None)
+    response = s3_client.head_object(Bucket="test", Key="get_partition_manifest/MANIFESTS")
+
+    manifest = get_partition_manifest("s3://test/get_partition_manifest/", 0, response["VersionId"])
 
     assert len(manifest) == 3
     assert manifest[0][0] == 972
@@ -244,3 +292,25 @@ def test_get_manifests(s3_client):
 def test_get_manifests_path():
     assert get_manifests_path("/example/path") == "/example/path/MANIFESTS"
     assert get_manifests_path("s3:///bucket/path") == "s3:///bucket/path/MANIFESTS"
+
+
+def test_guess_s3_ringsize(s3_client):
+    manifests = [
+        ("s3://example/path1", "version1"),
+        ("s3://example/path2", "version2"),
+        ("s3://example/path3", "version3"),
+        ("s3://example/path4", "version4"),
+        ("s3://example/path5", "version5"),
+    ]
+    upload_manifests(manifests, "s3://test/guess_s3_ringsize", None)
+    response = s3_client.head_object(Bucket="test", Key="guess_s3_ringsize/MANIFESTS")
+    assert guess_s3_ringsize("s3://test/guess_s3_ringsize", response["VersionId"], None) == 5
+
+    manifests = [
+        ("s3://example/path1", "version1"),
+        ("s3://example/path2", "version2"),
+        ("s3://example/path3", "version3"),
+    ]
+    upload_manifests(manifests, "s3://test/guess_s3_ringsize", None)
+    response = s3_client.head_object(Bucket="test", Key="guess_s3_ringsize/MANIFESTS")
+    assert guess_s3_ringsize("s3://test/guess_s3_ringsize", response["VersionId"], None) == 3

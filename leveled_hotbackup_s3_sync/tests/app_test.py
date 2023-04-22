@@ -6,14 +6,7 @@ import boto3
 import pytest
 from moto import mock_s3
 
-from leveled_hotbackup_s3_sync.app import (
-    backup,
-    check_endpoint_url,
-    check_s3_url,
-    list_versions,
-    main,
-    restore,
-)
+from leveled_hotbackup_s3_sync.app import backup, list_versions, main, restore
 from leveled_hotbackup_s3_sync.erlang import binary_to_term
 from leveled_hotbackup_s3_sync.journal import list_keys
 from leveled_hotbackup_s3_sync.manifest import read_manifest
@@ -93,26 +86,10 @@ def test_list_versions(s3_client, capsys):
     captured = capsys.readouterr()
     version_list = captured.out.split("\n")
     version_list.remove("")
-    assert version1["VersionId"] in version_list[2]
-    assert version2["VersionId"] in version_list[1]
-    assert version3["VersionId"] in version_list[0]
-    assert len(version_list) == 3
-
-
-def test_check_s3_url():
-    assert check_s3_url("s3://test/path/key") == "s3://test/path/key"
-    with pytest.raises(ValueError):
-        check_s3_url("randomtext")
-    with pytest.raises(ValueError):
-        check_s3_url("/file/path")
-    with pytest.raises(ValueError):
-        check_s3_url("https://www.google.com")
-
-
-def test_check_endpoint_url():
-    assert check_endpoint_url("http://localhost") == "http://localhost"
-    with pytest.raises(ValueError):
-        check_endpoint_url("http://localhost/path")
+    assert version1["VersionId"] in version_list[7]
+    assert version2["VersionId"] in version_list[5]
+    assert version3["VersionId"] in version_list[3]
+    assert len(version_list) == 9
 
 
 @patch("leveled_hotbackup_s3_sync.app.backup")
