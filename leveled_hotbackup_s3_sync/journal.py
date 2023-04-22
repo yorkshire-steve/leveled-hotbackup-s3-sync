@@ -40,8 +40,7 @@ def decode_journal_object(journal_key: bytes, journal_obj: bytes):
             journal_binary = zlib.decompress(journal_binary)
     if is_binary:
         return journal_binary
-    else:
-        return erlang.binary_to_term(journal_binary)
+    return erlang.binary_to_term(journal_binary)
 
 
 def decode_valuetype(value_type: int) -> tuple:
