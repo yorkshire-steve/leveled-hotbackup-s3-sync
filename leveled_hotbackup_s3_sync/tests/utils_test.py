@@ -9,7 +9,10 @@ from moto import mock_s3
 from leveled_hotbackup_s3_sync.utils import (
     download_bytes_from_s3,
     download_file_from_s3,
+    find_latest_ring,
     find_primary_partition,
+    get_owned_partitions,
+    get_ring_size,
     hash_bucket_key,
     list_s3_object_versions,
     local_path_exists,
@@ -21,6 +24,9 @@ from leveled_hotbackup_s3_sync.utils import (
     upload_bytes_to_s3,
     upload_file_to_s3,
 )
+
+TEST_RING_DIRECTORY = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring"
+TEST_RING_FILENAME = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring/riak_core_ring.default.20240116160656"
 
 
 @pytest.fixture(name="s3_client")
@@ -173,6 +179,21 @@ def test_find_primary_partition():
         find_primary_partition(512, b"typedBucket", b"k", b"bucketType")
         == 1381575766539369164864420818427111292018498732032
     )
+
+
+def test_find_latest_ring():
+    with pytest.raises(ValueError) as exc:
+        find_latest_ring("/tmp")
+    assert str(exc.value) == "/tmp is not a valid Riak Ring location"
+    assert find_latest_ring(TEST_RING_DIRECTORY) == TEST_RING_FILENAME
+
+
+def test_get_ring_size():
+    assert get_ring_size(TEST_RING_FILENAME) == 64
+
+
+def test_get_owned_partitions():
+    assert get_owned_partitions(TEST_RING_FILENAME) == riak_ring_indexes(64)
 
 
 RING_SIZE_32 = [
