@@ -109,3 +109,31 @@ def find_primary_partition(ring_size: int, bucket: bytes, bkey: bytes, buckettyp
     ring_increment = riak_ring_increment(ring_size)
     ring_position = (key_index // ring_increment + 1) % ring_size
     return ring[ring_position]
+
+
+def find_latest_ring(ring_directory: str) -> str:
+    filename = ""
+    with os.scandir(ring_directory) as itr:
+        for file in itr:
+            if file.name.startswith("riak_core_ring.") and file.name > filename:
+                filename = file.name
+    if filename == "":
+        raise ValueError(f"{ring_directory} is not a valid Riak Ring location")
+    return os.path.join(ring_directory, filename)
+
+
+def get_ring_size(ring_filename: str) -> int:
+    with open(ring_filename, "rb") as f:
+        ring_data = erlang.binary_to_term(f.read())
+    return ring_data[3][0]
+
+
+def get_owned_partitions(ring_filename: str) -> list:
+    owned_partitions = []
+    with open(ring_filename, "rb") as f:
+        ring_data = erlang.binary_to_term(f.read())
+    this_node = ring_data[1]
+    for partition in ring_data[3][1]:
+        if partition[1] == this_node:
+            owned_partitions.append(partition[0])
+    return owned_partitions
