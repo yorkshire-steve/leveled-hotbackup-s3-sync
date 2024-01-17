@@ -27,6 +27,7 @@ from leveled_hotbackup_s3_sync.utils import (
 
 TEST_RING_DIRECTORY = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring"
 TEST_RING_FILENAME = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring/riak_core_ring.default.20240116160656"
+TEST_RING_FILENAME2 = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring/riak_core_ring.default.20231025141013"
 
 
 @pytest.fixture(name="s3_client")
@@ -194,6 +195,8 @@ def test_get_ring_size():
 
 def test_get_owned_partitions():
     assert get_owned_partitions(TEST_RING_FILENAME) == riak_ring_indexes(64)
+    partitions = get_owned_partitions(TEST_RING_FILENAME2)
+    assert len(partitions) == 51
 
 
 RING_SIZE_32 = [

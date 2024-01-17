@@ -7,14 +7,18 @@ python3.8 -m venv .venv
 source .venv/bin/activate
 pip install leveled-hotbackup-s3-sync
 
-# Backup (default)
-python -m leveled_hotbackup_s3_sync -l /local/path/to/leveled/hotbackup -s s3://bucket/hotbackup/
+# Usage
+python -m leveled_hotbackup_s3_sync [backup|restore] [tag] --config config.cfg
 
-# List backups
-python -m leveled_hotbackup_s3_sync -s s3://bucket/hotbackup/ -a list
+[backup|restore] - specify operation to person
+[tag] - alphanumeric tag to create backup, or to select which backup to restore from
+--config config.cfg - filename for the config file, see examples/config.cfg
 
-# Restore (replace VERSION_ID_STRING with an ID from the above list command)
-python -m leveled_hotbackup_s3_sync -l /local/path/to/restore/to -s s3://bucket/hotbackup/ -a restore -v VERSION_ID_STRING
+# Backup example
+python -m leveled_hotbackup_s3_sync backup 123 --config config.cfg
+
+# Restore example
+python -m leveled_hotbackup_s3_sync restore 123 --config.cfg
 ```
 
 ## About
@@ -22,18 +26,13 @@ This tool will backup and restore LevelEd (https://github.com/martinsumner/level
 
 Intended to be used with Riak KV.
 
-The target Amazon S3 bucket must have versioning enabled.
+Backup will use the local Riak ring data at `ring_path` to determine which partitions are owned by the local node, then upload each hotbackup from the `hotbackup_path` to `s3_path`. When backup is being uploaded to S3, the manifest files are updated to reference the new S3 URIs for the journal files. Specifiy a unique `tag` for each backup (this is then used by restore).
 
-When backup is being uploaded to S3, the manifest files are updated to reference the new S3 URIs for the journal files.
-A `MANIFESTS` is also created and uploaded to S3 which contains a list of all manifests and their VersionIds to aid in point in time recovery.
-
-`--hintsfiles` option will also create a hints file for every journal file. The hints file is a CDB of Bucket/Key to sequence number. 
+`hints_files = true` option in config will also create a hints file for every journal file. The hints file is a CDB of Bucket/Key to sequence number. 
 The hints file is intended for future functionality of single object retrieval directly from S3 where bucket/key are known but sequence number is not.
 
-A list of versions can be retrived with `-a list` argument which will print out the Last Modified timestamps and Version IDs of the `MANIFESTS` object in S3.
-
-To restore to local filesystem, a Version ID from the list command is needed. Restore can be performed with `-a restore -v VERSIONID` argument.
-This will read the given VersionId of the `MANIFESTS` file and get the correct versions of all manifests, then use these to determine the journal files to download.
+To restore to local filesystem, the same `tag` used during backup must be used.
+Restore will use the local Riak ring data at `ring_path` to determine which partitions are owned by the local node. Restore will then download the relevant tagged manifest from `s3_path` to the local `leveled_path` and download journal files if needed.
 New manifests are then written locally with updated references to the new journal file locations.
 
 ## Testing
@@ -42,7 +41,7 @@ To aid testing a `docker-compose.yml` is included in the `localstack` directory 
 make localstack
 ```
 
-The `--endpoint` or `-e` parameter can then be passed to the python script to use a different S3 endpoint URL.
+The `s3_endpoint` config parameter can then be passed to the python script to use a different S3 endpoint URL.
 ```
 python -m leveled_hotbackup_s3_sync -l /local/path/to/leveled -s s3://bucket/hotbackup/ -e http://localhost:4566
 ```
