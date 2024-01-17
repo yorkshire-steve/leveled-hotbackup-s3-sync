@@ -31,9 +31,9 @@ def save_local_manifest(new_manifest: list, filename: str) -> None:
 
 def upload_new_manifest(
     new_manifest: list, partition: str, destination: str, tag: str, endpoint: Union[str, None]
-) -> tuple:
+) -> str:
     manifest = erlang.term_to_binary(new_manifest, compressed=True)
     s3_path = os.path.join(destination, partition, f"journal/journal_manifest/{tag}.man")
     print(f"Uploading new manifest to {s3_path}")
-    version_id = upload_bytes_to_s3(manifest, s3_path, endpoint)
-    return (s3_path, version_id)
+    upload_bytes_to_s3(manifest, s3_path, endpoint)
+    return s3_path

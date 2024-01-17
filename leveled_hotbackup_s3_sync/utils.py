@@ -43,18 +43,10 @@ def upload_file_to_s3(source: str, destination: str, endpoint: Union[str, None])
     s3_client.upload_file(source, bucket, key)
 
 
-def upload_bytes_to_s3(data: bytes, destination: str, endpoint: Union[str, None]) -> str:
+def upload_bytes_to_s3(data: bytes, destination: str, endpoint: Union[str, None]) -> None:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(destination)
-    response = s3_client.put_object(Body=data, Bucket=bucket, Key=key)
-    return response["VersionId"]
-
-
-def list_s3_object_versions(s3_path: str, endpoint: Union[str, None]) -> list:
-    s3_client = boto3.client("s3", endpoint_url=endpoint)
-    bucket, key = parse_s3_url(s3_path)
-    response = s3_client.list_object_versions(Bucket=bucket, Prefix=key)
-    return response["Versions"]
+    s3_client.put_object(Body=data, Bucket=bucket, Key=key)
 
 
 def download_file_from_s3(s3_path: str, local_path: str, endpoint: Union[str, None]) -> None:

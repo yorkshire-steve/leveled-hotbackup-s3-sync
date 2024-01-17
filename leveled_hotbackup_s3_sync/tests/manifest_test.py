@@ -165,8 +165,7 @@ def test_upload_new_manifest(s3_client):
 
     s3_obj = s3_client.get_object(Bucket="test", Key="upload_new_manifest/0/journal/journal_manifest/123.man")
 
-    assert manifest_name[0] == "s3://test/upload_new_manifest/0/journal/journal_manifest/123.man"
-    assert manifest_name[1] == s3_obj["VersionId"]
+    assert manifest_name == "s3://test/upload_new_manifest/0/journal/journal_manifest/123.man"
     s3_data = s3_obj["Body"].read()
     assert (
         s3_data == b"\x83P\x00\x00\x02\x9bx\x9c\xad\x91;N\x031\x10@\x9d\x9f\x84D\xc1I&\xeb\xb5\xc7c\xbbC4\x14\xb4"

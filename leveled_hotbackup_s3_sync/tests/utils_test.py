@@ -14,7 +14,6 @@ from leveled_hotbackup_s3_sync.utils import (
     get_owned_partitions,
     get_ring_size,
     hash_bucket_key,
-    list_s3_object_versions,
     local_path_exists,
     parse_s3_url,
     riak_ring_increment,
@@ -72,21 +71,6 @@ def test_upload_bytes_to_s3(s3_client):
     upload_bytes_to_s3(b"Hello world!", "s3://test/world", None)
     s3_obj = s3_client.get_object(Bucket="test", Key="world")
     assert s3_obj["Body"].read() == b"Hello world!"
-
-
-def test_list_s3_object_versions(s3_client):
-    _ = s3_client
-    version1 = upload_bytes_to_s3(b"First version", "s3://test/listversion", None)
-    version2 = upload_bytes_to_s3(b"Second version", "s3://test/listversion", None)
-    version3 = upload_bytes_to_s3(b"Third version", "s3://test/listversion", None)
-
-    version_list = list_s3_object_versions("s3://test/listversion", None)
-    assert [x["VersionId"] for x in version_list] == [version3, version2, version1]
-
-    version1 = upload_bytes_to_s3(b"Only one version", "s3://test/listoneversion", None)
-
-    version_list = list_s3_object_versions("s3://test/listoneversion", None)
-    assert [x["VersionId"] for x in version_list] == [version1]
 
 
 def test_download_file_from_s3(s3_client):
