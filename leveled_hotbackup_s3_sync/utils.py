@@ -15,7 +15,7 @@ MAX_SHA_INT = 1461501637330902918203684832716283019655932542975
 def parse_s3_url(path: str) -> Tuple[str, str]:
     parsed_url = urlparse(path)
     if parsed_url.scheme != "s3":
-        raise ValueError
+        raise ValueError(f"{path} is not a valid S3 URI")
     bucket = parsed_url.netloc
     key = parsed_url.path[1:]
     return bucket, key
