@@ -10,15 +10,15 @@ pip install leveled-hotbackup-s3-sync
 # Usage
 python -m leveled_hotbackup_s3_sync [backup|restore] [tag] --config config.cfg
 
-[backup|restore] - specify operation to person
-[tag] - alphanumeric tag to create backup, or to select which backup to restore from
+[backup|restore] - specify operation to perform
+[tag] - alphanumeric string to tag backup, or to select which backup to restore from
 --config config.cfg - filename for the config file, see examples/config.cfg
 
 # Backup example
 python -m leveled_hotbackup_s3_sync backup 123 --config config.cfg
 
 # Restore example
-python -m leveled_hotbackup_s3_sync restore 123 --config.cfg
+python -m leveled_hotbackup_s3_sync restore 123 --config config.cfg
 ```
 
 ## About
@@ -41,10 +41,7 @@ To aid testing a `docker-compose.yml` is included in the `localstack` directory 
 make localstack
 ```
 
-The `s3_endpoint` config parameter can then be passed to the python script to use a different S3 endpoint URL.
-```
-python -m leveled_hotbackup_s3_sync -l /local/path/to/leveled -s s3://bucket/hotbackup/ -e http://localhost:4566
-```
+The `s3_endpoint` config parameter can then be set in config.cfg to use a different S3 endpoint URL.
 
 ## Riak backup example
 To perform a Riak LevelEd hotbackup.
