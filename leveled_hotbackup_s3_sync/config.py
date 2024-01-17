@@ -13,21 +13,21 @@ else:
 def check_s3_url(url: str) -> str:
     parsed_url = urlparse(url)
     if parsed_url.scheme != "s3":
-        raise ValueError
+        raise ValueError(f"{url} is not a valid S3 URI")
     return url
 
 
 def check_endpoint_url(url: str) -> str:
     parsed_url = urlparse(url)
     if parsed_url.path != "":
-        raise ValueError
+        raise ValueError(f"{url} is not a valid endpoint URL")
     return url
 
 
 def check_directory(path: str) -> str:
     parsed_path = os.path.abspath(path)
     if not os.path.isdir(parsed_path):
-        raise ValueError
+        raise ValueError(f"{path} does not exist")
     return parsed_path
 
 
