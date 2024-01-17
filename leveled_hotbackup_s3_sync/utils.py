@@ -123,15 +123,15 @@ def find_latest_ring(ring_directory: str) -> str:
 
 
 def get_ring_size(ring_filename: str) -> int:
-    with open(ring_filename, "rb") as f:
-        ring_data = erlang.binary_to_term(f.read())
+    with open(ring_filename, "rb") as file_handle:
+        ring_data = erlang.binary_to_term(file_handle.read())
     return ring_data[3][0]
 
 
 def get_owned_partitions(ring_filename: str) -> list:
     owned_partitions = []
-    with open(ring_filename, "rb") as f:
-        ring_data = erlang.binary_to_term(f.read())
+    with open(ring_filename, "rb") as file_handle:
+        ring_data = erlang.binary_to_term(file_handle.read())
     this_node = ring_data[1]
     for partition in ring_data[3][1]:
         if partition[1] == this_node:
