@@ -1,78 +1,53 @@
 import argparse
 import os
 import os.path
-from typing import Union
-from urllib.parse import urlparse
 
+from leveled_hotbackup_s3_sync.config import read_config
 from leveled_hotbackup_s3_sync.journal import (
     maybe_download_journal,
     maybe_upload_journal,
     update_journal_filename,
 )
 from leveled_hotbackup_s3_sync.manifest import (
-    get_manifests,
-    get_manifests_versions,
     read_manifest,
     read_s3_manifest,
     save_local_manifest,
-    upload_manifests,
     upload_new_manifest,
 )
-from leveled_hotbackup_s3_sync.utils import swap_path
+from leveled_hotbackup_s3_sync.utils import get_owned_partitions
 
 
-def backup(source: str, destination: str, create_hints_files: bool, endpoint: Union[str, None]) -> None:
-    s3_manifests = []
-    partitions = os.listdir(source)
+def backup(config: dict) -> None:
+    partitions = get_owned_partitions(config["ring_filename"])
     for partition in partitions:
-        manifest_filename = os.path.join(source, partition, "journal/journal_manifest/0.man")
+        manifest_filename = os.path.join(config["hotbackup_path"], str(partition), "journal/journal_manifest/0.man")
         print(f"Starting to process {manifest_filename}")
         manifest = read_manifest(manifest_filename)
 
         new_manifest = []
         for journal in manifest:
-            maybe_upload_journal(journal, source, destination, create_hints_files, endpoint)
-            new_manifest.append(update_journal_filename(journal, source, destination))
+            maybe_upload_journal(
+                journal, config["hotbackup_path"], config["s3_path"], config["hints_files"], config["s3_endpoint"]
+            )
+            new_manifest.append(update_journal_filename(journal, config["hotbackup_path"], config["s3_path"]))
 
-        s3_entry = upload_new_manifest(new_manifest, partition, destination, endpoint)
-        s3_manifests.append(s3_entry)
-    upload_manifests(s3_manifests, destination, endpoint)
+        upload_new_manifest(new_manifest, str(partition), config["s3_path"], config["tag"], config["s3_endpoint"])
 
 
-def restore(source: str, version: str, destination: str, endpoint: Union[str, None]) -> None:
-    manifests_list = get_manifests(source, version, endpoint)
-    for manifest_path_version in manifests_list:
-        print(f"Starting to process {manifest_path_version[0].decode('utf-8')}")
-        manifest = read_s3_manifest(
-            manifest_path_version[0].decode("utf-8"), manifest_path_version[1].decode("utf-8"), endpoint
+def restore(config: dict) -> None:
+    partitions = get_owned_partitions(config["ring_filename"])
+    for partition in partitions:
+        manifest_s3_path = os.path.join(
+            config["s3_path"], str(partition), f"journal/journal_manifest/{config['tag']}.man"
         )
+        manifest = read_s3_manifest(manifest_s3_path, config["s3_endpoint"])
 
         new_manifest = []
         for journal in manifest:
-            maybe_download_journal(journal, source, destination, endpoint)
-            new_manifest.append(update_journal_filename(journal, source, destination))
-        manifest_filename = swap_path(manifest_path_version[0].decode("utf-8"), source, destination)
+            maybe_download_journal(journal, config["s3_path"], config["leveled_path"], config["s3_endpoint"])
+            new_manifest.append(update_journal_filename(journal, config["s3_path"], config["leveled_path"]))
+        manifest_filename = os.path.join(config["leveled_path"], str(partition), "journal/journal_manifest/0.man")
         save_local_manifest(new_manifest, manifest_filename)
-
-
-def list_versions(destination: str, endpoint: Union[str, None]) -> None:
-    manifest_versions = get_manifests_versions(destination, endpoint)
-    for manifest in manifest_versions:
-        print(manifest["LastModified"], manifest["VersionId"])
-
-
-def check_s3_url(url: str) -> str:
-    parsed_url = urlparse(url)
-    if parsed_url.scheme != "s3":
-        raise ValueError
-    return url
-
-
-def check_endpoint_url(url: str) -> str:
-    parsed_url = urlparse(url)
-    if parsed_url.path != "":
-        raise ValueError
-    return url
 
 
 def main() -> None:
@@ -81,49 +56,29 @@ def main() -> None:
         description="Synchronise Riak hot-backup between S3 and local",
     )
     parser.add_argument(
-        "-a",
-        "--action",
-        choices=["backup", "restore", "list"],
-        default="backup",
-        required=False,
+        "action",
+        choices=["backup", "restore"],
+        help="Specify operation to perform",
     )
     parser.add_argument(
-        "-l",
-        "--local",
-        type=os.path.abspath,  # type:ignore
-        required=False,
-        help="Local directory",
-    )
-    parser.add_argument("-s", "--s3", type=check_s3_url, required=True, help="S3 path")
-    parser.add_argument(
-        "-e",
-        "--endpoint",
-        type=check_endpoint_url,
-        required=False,
-        default=None,
-        help="S3 Endpoint URL to override AWS default",
+        "tag",
+        type=str,
+        help="String to tag a backup, or to specify which version to restore from",
     )
     parser.add_argument(
-        "-v",
-        "--version",
+        "-c",
+        "--config",
+        type=os.path.abspath,  # type: ignore
         required=False,
-        default=None,
-        help="VersionId of MANIFESTS to restore from",
+        default="config.cfg",
+        help="Config file (see docs for further info)",
     )
-    parser.add_argument("--hintsfiles", action="store_true", help="Create hints CDB files on backup")
     args = parser.parse_args()
 
-    if args.action == "backup":
-        if not args.local:
-            raise ValueError("Must specify local directory to backup from")
-        backup(args.local, args.s3, args.hintsfiles, args.endpoint)
+    config = read_config(args.config, args.tag)
 
-    if args.action == "list":
-        list_versions(args.s3, args.endpoint)
+    if args.action == "backup":
+        backup(config)
 
     if args.action == "restore":
-        if not args.local:
-            raise ValueError("Must specify local directory to restore to")
-        if not args.version:
-            raise ValueError("Must specify VersionId of MANIFESTS file to restore from")
-        restore(args.s3, args.version, args.local, args.endpoint)
+        restore(config)

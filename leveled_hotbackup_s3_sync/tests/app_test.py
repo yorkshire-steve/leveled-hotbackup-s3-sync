@@ -1,23 +1,36 @@
 import os.path
 import tempfile
+from contextlib import contextmanager
+from copy import deepcopy
 from unittest.mock import patch
 
 import boto3
 import pytest
 from moto import mock_s3
 
-from leveled_hotbackup_s3_sync.app import (
-    backup,
-    check_endpoint_url,
-    check_s3_url,
-    list_versions,
-    main,
-    restore,
-)
-from leveled_hotbackup_s3_sync.erlang import binary_to_term
+from leveled_hotbackup_s3_sync.app import backup, main, restore
 from leveled_hotbackup_s3_sync.journal import list_keys
 from leveled_hotbackup_s3_sync.manifest import read_manifest
-from leveled_hotbackup_s3_sync.utils import swap_path
+from leveled_hotbackup_s3_sync.utils import get_owned_partitions
+
+TEST_CONFIG_FILENAME = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59.cfg"
+TEST_CONFIG = b"""
+hotbackup_path = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59"
+ring_path = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring"
+leveled_path = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59"
+s3_path = "s3://test/hotbackup3/"
+hints_files = false
+"""
+TEST_CONFIG_DICT = {
+    "hotbackup_path": "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59",
+    "ring_path": "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring",
+    "ring_filename": "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring/riak_core_ring.default.20240116160656",
+    "leveled_path": "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59",
+    "s3_path": "s3://test/hotbackup3/",
+    "hints_files": False,
+    "s3_endpoint": None,
+    "tag": "123",
+}
 
 
 @pytest.fixture(name="s3_client")
@@ -38,39 +51,33 @@ def fixture_s3_client():
 def test_backup(s3_client):
     response = s3_client.list_objects_v2(Bucket="test", Prefix="hotbackup3/")
     assert "Contents" not in response
-    backup("/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59", "s3://test/hotbackup3", False, None)
+    backup(TEST_CONFIG_DICT)
     response = s3_client.list_objects_v2(Bucket="test", Prefix="hotbackup3/")
-    assert len(response["Contents"]) == 215
+    assert len(response["Contents"]) == 214
+    s3_keys = [x["Key"] for x in response["Contents"]]
 
-    manifests_obj = s3_client.get_object(Bucket="test", Key="hotbackup3/MANIFESTS")
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/MANIFESTS"), "rb") as file_handle:
-        manifests_file = binary_to_term(file_handle.read())
+    partitions = get_owned_partitions(TEST_CONFIG_DICT["ring_filename"])  # type: ignore
 
-    s3_manifest_names = [x[0] for x in binary_to_term(manifests_obj["Body"].read())]
-    file_manifest_names = [x[0] for x in manifests_file]
-
-    assert len(s3_manifest_names) == 64
-    assert len(file_manifest_names) == 64
-
-    for name in s3_manifest_names:
-        assert name in file_manifest_names
+    for partition in partitions:
+        assert f"hotbackup3/{str(partition)}/journal/journal_manifest/{TEST_CONFIG_DICT['tag']}.man" in s3_keys
 
 
-def test_restore(s3_client):
-    backup("/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59", "s3://test/hotbackup3", False, None)
-    response = s3_client.head_object(Bucket="test", Key="hotbackup3/MANIFESTS")
+def test_restore(s3_client):  # pylint: disable=unused-argument
+    config = deepcopy(TEST_CONFIG_DICT)
 
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/MANIFESTS"), "rb") as file_handle:
-        manifests_file = binary_to_term(file_handle.read())
-    file_manifest_names = [x[0].decode("utf-8") for x in manifests_file]
+    backup(config)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        restore("s3://test/hotbackup3", response["VersionId"], tmpdir, None)
+        config["leveled_path"] = tmpdir
+        restore(config)
 
         assert len(os.listdir(tmpdir)) == 64
 
-        for manifest_filename in file_manifest_names:
-            assert os.path.exists(swap_path(manifest_filename, "s3://test/hotbackup3", tmpdir)) is True
+        partitions = get_owned_partitions(TEST_CONFIG_DICT["ring_filename"])  # type: ignore
+
+        for partition in partitions:
+            manifest_filename = os.path.join(tmpdir, str(partition), "journal/journal_manifest/0.man")
+            assert os.path.exists(manifest_filename) is True
 
         manifest0 = read_manifest(os.path.join(tmpdir, "0/journal/journal_manifest/0.man"))
         assert len(manifest0) == 3
@@ -83,101 +90,30 @@ def test_restore(s3_client):
         assert len(journal_keys) == 485
 
 
-def test_list_versions(s3_client, capsys):
-    version1 = s3_client.put_object(Bucket="test", Key="list_versions/MANIFESTS", Body=b"version1")
-    version2 = s3_client.put_object(Bucket="test", Key="list_versions/MANIFESTS", Body=b"version2")
-    version3 = s3_client.put_object(Bucket="test", Key="list_versions/MANIFESTS", Body=b"version3")
-
-    list_versions("s3://test/list_versions", None)
-
-    captured = capsys.readouterr()
-    version_list = captured.out.split("\n")
-    version_list.remove("")
-    assert version1["VersionId"] in version_list[2]
-    assert version2["VersionId"] in version_list[1]
-    assert version3["VersionId"] in version_list[0]
-    assert len(version_list) == 3
-
-
-def test_check_s3_url():
-    assert check_s3_url("s3://test/path/key") == "s3://test/path/key"
-    with pytest.raises(ValueError):
-        check_s3_url("randomtext")
-    with pytest.raises(ValueError):
-        check_s3_url("/file/path")
-    with pytest.raises(ValueError):
-        check_s3_url("https://www.google.com")
-
-
-def test_check_endpoint_url():
-    assert check_endpoint_url("http://localhost") == "http://localhost"
-    with pytest.raises(ValueError):
-        check_endpoint_url("http://localhost/path")
+@contextmanager
+def create_test_config():
+    with open(TEST_CONFIG_FILENAME, "wb") as file_handle:
+        file_handle.write(TEST_CONFIG)
+    try:
+        yield TEST_CONFIG_FILENAME
+    finally:
+        os.remove(TEST_CONFIG_FILENAME)
 
 
 @patch("leveled_hotbackup_s3_sync.app.backup")
-@patch("argparse._sys.argv", new=["python", "--local", "/local/path", "--s3", "s3://bucket/path"])
+@patch("argparse._sys.argv", new=["python", "backup", "123", "--config", TEST_CONFIG_FILENAME])
 def test_main_backup(patched_backup):
-    main()
-    patched_backup.assert_called_with("/local/path", "s3://bucket/path", False, None)
-
-
-@patch("leveled_hotbackup_s3_sync.app.backup")
-@patch(
-    "argparse._sys.argv",
-    new=["python", "--local", "/local/path", "--s3", "s3://bucket/path", "-a", "backup", "--hintsfiles"],
-)
-def test_main_backup_with_hints(patched_backup):
-    main()
-    patched_backup.assert_called_with("/local/path", "s3://bucket/path", True, None)
-
-
-@patch("argparse._sys.argv", new=["python", "--s3", "s3://bucket/path"])
-def test_main_backup_no_local():
-    with pytest.raises(ValueError) as exc:
+    with create_test_config():
         main()
-    assert str(exc.value) == "Must specify local directory to backup from"
+    patched_backup.assert_called_with(TEST_CONFIG_DICT)
 
 
 @patch("leveled_hotbackup_s3_sync.app.restore")
 @patch(
     "argparse._sys.argv",
-    new=["python", "--local", "/local/path", "--s3", "s3://bucket/path", "-v", "VERSIONID", "-a", "restore"],
+    new=["python", "restore", "123", "--config", TEST_CONFIG_FILENAME],
 )
 def test_main_restore(patched_restore):
-    main()
-    patched_restore.assert_called_with("s3://bucket/path", "VERSIONID", "/local/path", None)
-
-
-@patch(
-    "argparse._sys.argv",
-    new=["python", "--s3", "s3://bucket/path", "-v", "VERSIONID", "-a", "restore"],
-)
-def test_main_restore_no_local():
-    with pytest.raises(ValueError) as exc:
+    with create_test_config():
         main()
-    assert str(exc.value) == "Must specify local directory to restore to"
-
-
-@patch(
-    "argparse._sys.argv",
-    new=["python", "--local", "/local/path", "--s3", "s3://bucket/path", "-a", "restore"],
-)
-def test_main_restore_no_version():
-    with pytest.raises(ValueError) as exc:
-        main()
-    assert str(exc.value) == "Must specify VersionId of MANIFESTS file to restore from"
-
-
-@patch("leveled_hotbackup_s3_sync.app.list_versions")
-@patch("argparse._sys.argv", new=["python", "-s", "s3://bucket/path", "-a", "list"])
-def test_main_list_verions(patched_list_versions):
-    main()
-    patched_list_versions.assert_called_with("s3://bucket/path", None)
-
-
-@patch("leveled_hotbackup_s3_sync.app.list_versions")
-@patch("argparse._sys.argv", new=["python", "-s", "s3://bucket/path", "-a", "list", "-e", "http://localhost"])
-def test_main_list_verions_endpoint(patched_list_versions):
-    main()
-    patched_list_versions.assert_called_with("s3://bucket/path", "http://localhost")
+    patched_restore.assert_called_with(TEST_CONFIG_DICT)

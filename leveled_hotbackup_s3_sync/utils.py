@@ -15,7 +15,7 @@ MAX_SHA_INT = 1461501637330902918203684832716283019655932542975
 def parse_s3_url(path: str) -> Tuple[str, str]:
     parsed_url = urlparse(path)
     if parsed_url.scheme != "s3":
-        raise ValueError
+        raise ValueError(f"{path} is not a valid S3 URI")
     bucket = parsed_url.netloc
     key = parsed_url.path[1:]
     return bucket, key
@@ -43,18 +43,10 @@ def upload_file_to_s3(source: str, destination: str, endpoint: Union[str, None])
     s3_client.upload_file(source, bucket, key)
 
 
-def upload_bytes_to_s3(data: bytes, destination: str, endpoint: Union[str, None]) -> str:
+def upload_bytes_to_s3(data: bytes, destination: str, endpoint: Union[str, None]) -> None:
     s3_client = boto3.client("s3", endpoint_url=endpoint)
     bucket, key = parse_s3_url(destination)
-    response = s3_client.put_object(Body=data, Bucket=bucket, Key=key)
-    return response["VersionId"]
-
-
-def list_s3_object_versions(s3_path: str, endpoint: Union[str, None]) -> list:
-    s3_client = boto3.client("s3", endpoint_url=endpoint)
-    bucket, key = parse_s3_url(s3_path)
-    response = s3_client.list_object_versions(Bucket=bucket, Prefix=key)
-    return response["Versions"]
+    s3_client.put_object(Body=data, Bucket=bucket, Key=key)
 
 
 def download_file_from_s3(s3_path: str, local_path: str, endpoint: Union[str, None]) -> None:
@@ -109,3 +101,31 @@ def find_primary_partition(ring_size: int, bucket: bytes, bkey: bytes, buckettyp
     ring_increment = riak_ring_increment(ring_size)
     ring_position = (key_index // ring_increment + 1) % ring_size
     return ring[ring_position]
+
+
+def find_latest_ring(ring_directory: str) -> str:
+    filename = ""
+    with os.scandir(ring_directory) as itr:
+        for file in itr:
+            if file.name.startswith("riak_core_ring.") and file.name > filename:
+                filename = file.name
+    if filename == "":
+        raise ValueError(f"{ring_directory} is not a valid Riak Ring location")
+    return os.path.join(ring_directory, filename)
+
+
+def get_ring_size(ring_filename: str) -> int:
+    with open(ring_filename, "rb") as file_handle:
+        ring_data = erlang.binary_to_term(file_handle.read())
+    return ring_data[3][0]
+
+
+def get_owned_partitions(ring_filename: str) -> list:
+    owned_partitions = []
+    with open(ring_filename, "rb") as file_handle:
+        ring_data = erlang.binary_to_term(file_handle.read())
+    this_node = ring_data[1]
+    for partition in ring_data[3][1]:
+        if partition[1] == this_node:
+            owned_partitions.append(partition[0])
+    return owned_partitions
