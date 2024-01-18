@@ -13,6 +13,8 @@ from leveled_hotbackup_s3_sync.journal import (
     update_journal_filename,
 )
 
+HOTBACKUP_DIR = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59"
+
 
 @pytest.fixture(name="s3_client")
 def fixture_s3_client():
@@ -30,9 +32,7 @@ def fixture_s3_client():
 
 
 def test_list_keys():
-    filename = (
-        "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706.cdb"
-    )
+    filename = f"{HOTBACKUP_DIR}/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706.cdb"
     keys = list_keys(filename)
 
     assert len(keys) == 485
@@ -74,9 +74,7 @@ def test_maybe_upload_journal(s3_client):
             ),
         ),
     )
-    maybe_upload_journal(
-        journal, "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/", "s3://test/maybe_upload_journal/", False, None
-    )
+    maybe_upload_journal(journal, f"{HOTBACKUP_DIR}/", "s3://test/maybe_upload_journal/", False, None)
 
     s3_obj = s3_client.get_object(
         Bucket="test",
@@ -84,15 +82,13 @@ def test_maybe_upload_journal(s3_client):
     )
 
     with open(
-        "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb",
+        f"{HOTBACKUP_DIR}/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb",
         "rb",
     ) as file_handle:
         assert file_handle.read() == s3_obj["Body"].read()
 
     # Attempt upload again to test only upload if not exists
-    maybe_upload_journal(
-        journal, "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/", "s3://test/maybe_upload_journal/", False, None
-    )
+    maybe_upload_journal(journal, f"{HOTBACKUP_DIR}/", "s3://test/maybe_upload_journal/", False, None)
 
     s3_head = s3_client.head_object(
         Bucket="test",
@@ -103,31 +99,31 @@ def test_maybe_upload_journal(s3_client):
     # Now test hints file creation
     with tempfile.NamedTemporaryFile(suffix=".cdb") as file_handle:
         with open(
-            "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb",
+            f"{HOTBACKUP_DIR}/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb",
             "rb",
         ) as reader:
             file_handle.write(reader.read())
         file_handle.flush()
         filename = file_handle.name
         maybe_upload_journal(
-            (0, filename.rstrip(".cdb").encode("utf-8")),
+            (0, filename[:-4].encode("utf-8")),
             os.path.dirname(filename),
             "s3://test/maybe_upload_journal_hints",
             True,
             None,
         )
 
-    short_filename = os.path.basename(filename).rstrip(".cdb")
+    short_filename = os.path.basename(filename)[:-4]
     s3_obj = s3_client.get_object(Bucket="test", Key=f"maybe_upload_journal_hints/{short_filename}.cdb")
     with open(
-        "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb",
+        f"{HOTBACKUP_DIR}/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb",
         "rb",
     ) as file_handle:
         assert file_handle.read() == s3_obj["Body"].read()
 
     s3_obj = s3_client.get_object(Bucket="test", Key=f"maybe_upload_journal_hints/{short_filename}.hints.cdb")
     with open(
-        "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.hints.cdb",
+        f"{HOTBACKUP_DIR}/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.hints.cdb",
         "rb",
     ) as file_handle:
         assert file_handle.read() == s3_obj["Body"].read()
@@ -170,7 +166,7 @@ def test_update_journal_filename():
             ),
         ),
     )
-    new_journal = update_journal_filename(journal, "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59", "/new/path")
+    new_journal = update_journal_filename(journal, HOTBACKUP_DIR, "/new/path")
 
     assert new_journal == (
         journal[0],

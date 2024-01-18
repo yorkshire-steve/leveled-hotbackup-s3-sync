@@ -14,6 +14,7 @@ python = "^3.8"
 boto3 = "^1.26.114"
 pure-cdb = "^4.0.0"
 frozendict = "^2.3.7"
+tomli = {version = "^2.0.1", python = "<3.11"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"

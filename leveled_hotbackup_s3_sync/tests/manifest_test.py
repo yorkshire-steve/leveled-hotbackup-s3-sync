@@ -1,4 +1,3 @@
-import os.path
 import tempfile
 
 import boto3
@@ -7,13 +6,9 @@ from moto import mock_s3
 
 from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.manifest import (
-    get_manifests,
-    get_manifests_path,
-    get_manifests_versions,
     read_manifest,
     read_s3_manifest,
     save_local_manifest,
-    upload_manifests,
     upload_new_manifest,
 )
 
@@ -109,9 +104,8 @@ def test_read_manifest():
 def test_read_s3_manifest(s3_client):
     manifest_filename = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_manifest/0.man"
     s3_client.upload_file(manifest_filename, "test", "reads3manifest")
-    response = s3_client.head_object(Bucket="test", Key="reads3manifest")
 
-    manifest = read_s3_manifest("s3://test/reads3manifest", response["VersionId"], None)
+    manifest = read_s3_manifest("s3://test/reads3manifest", None)
 
     assert len(manifest) == 3
     assert manifest[0][0] == 972
@@ -167,12 +161,11 @@ def test_save_local_manifest_encoding():
 
 
 def test_upload_new_manifest(s3_client):
-    manifest_name = upload_new_manifest(MANIFEST_DATA, "0", "s3://test/upload_new_manifest", None)
+    manifest_name = upload_new_manifest(MANIFEST_DATA, "0", "s3://test/upload_new_manifest", "123", None)
 
-    s3_obj = s3_client.get_object(Bucket="test", Key="upload_new_manifest/0/journal/journal_manifest/0.man")
+    s3_obj = s3_client.get_object(Bucket="test", Key="upload_new_manifest/0/journal/journal_manifest/123.man")
 
-    assert manifest_name[0] == "s3://test/upload_new_manifest/0/journal/journal_manifest/0.man"
-    assert manifest_name[1] == s3_obj["VersionId"]
+    assert manifest_name == "s3://test/upload_new_manifest/0/journal/journal_manifest/123.man"
     s3_data = s3_obj["Body"].read()
     assert (
         s3_data == b"\x83P\x00\x00\x02\x9bx\x9c\xad\x91;N\x031\x10@\x9d\x9f\x84D\xc1I&\xeb\xb5\xc7c\xbbC4\x14\xb4"
@@ -185,62 +178,3 @@ def test_upload_new_manifest(s3_client):
         b"\xf4~1;\xc7Z\xd6\xfc_\x8dW\x8a\xd7HD\x1e\xc8E\x03\xe8\xa9\x06\x9b\x84\x03!\x9d\x90*\x18\xa19\x9d\x7f\xdb"
         b"kfcG\xb1\xc1\xd7\x85\xc4\xe6?]{\xb6U"
     )
-
-
-def test_upload_manifests(s3_client):
-    manifests = [
-        ("s3://example/path1", "version1"),
-        ("s3://example/path2", "version2"),
-        ("s3://example/path3", "version3"),
-        ("s3://example/path4", "version4"),
-        ("s3://example/path5", "version5"),
-    ]
-    upload_manifests(manifests, "s3://test/upload_manifests", None)
-    manifest_data = s3_client.get_object(Bucket="test", Key="upload_manifests/MANIFESTS")
-
-    assert erlang.binary_to_term(manifest_data["Body"].read()) == [
-        (b"s3://example/path1", b"version1"),
-        (b"s3://example/path2", b"version2"),
-        (b"s3://example/path3", b"version3"),
-        (b"s3://example/path4", b"version4"),
-        (b"s3://example/path5", b"version5"),
-    ]
-
-
-def test_get_manifests_versions(s3_client):
-    v1_response = s3_client.put_object(Bucket="test", Key="get_manifests_versions/MANIFESTS", Body=b"testbytesv1")
-    v2_response = s3_client.put_object(Bucket="test", Key="get_manifests_versions/MANIFESTS", Body=b"testbytesv2")
-    v3_response = s3_client.put_object(Bucket="test", Key="get_manifests_versions/MANIFESTS", Body=b"testbytesv3")
-    v4_response = s3_client.put_object(Bucket="test", Key="get_manifests_versions/MANIFESTS", Body=b"testbytesv4")
-
-    versions = get_manifests_versions("s3://test/get_manifests_versions", None)
-
-    assert [x["VersionId"] for x in versions] == [
-        v4_response["VersionId"],
-        v3_response["VersionId"],
-        v2_response["VersionId"],
-        v1_response["VersionId"],
-    ]
-
-
-def test_get_manifests(s3_client):
-    manifests_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/MANIFESTS")
-    s3_client.upload_file(manifests_filename, "test", "get_manifests/MANIFESTS")
-    response = s3_client.head_object(Bucket="test", Key="get_manifests/MANIFESTS")
-
-    manifests = get_manifests("s3://test/get_manifests", response["VersionId"], None)
-
-    assert len(manifests) == 64
-    assert manifests[0] == (
-        b"s3://test/hotbackup3/639406966332270026714112114313373821099470487552/journal/journal_manifest/0.man",
-        b"96fb3112-f250-415f-a278-721945738922",
-    )
-    assert manifests[63] == (
-        b"s3://test/hotbackup3/730750818665451459101842416358141509827966271488/journal/journal_manifest/0.man",
-        b"f233890d-cf17-4d06-813b-6c7917270fdc",
-    )
-
-
-def test_get_manifests_path():
-    assert get_manifests_path("/example/path") == "/example/path/MANIFESTS"
-    assert get_manifests_path("s3:///bucket/path") == "s3:///bucket/path/MANIFESTS"

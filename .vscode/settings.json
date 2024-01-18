@@ -2,8 +2,10 @@
     "editor.formatOnSave": true,
     "[python]": {
         "editor.codeActionsOnSave": {
-            "source.organizeImports": true
-        }
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true
     },
     "isort.args": [
         "--profile",
@@ -16,10 +18,6 @@
         "reportTypedDictNotRequiredAccess": "none",
     },
     "python.languageServer": "Pylance",
-    "python.formatting.provider": "black",
-    "python.linting.pylintEnabled": true,
-    "python.linting.mypyEnabled": true,
-    "python.linting.enabled": true,
     "python.testing.pytestArgs": [
         "leveled_hotbackup_s3_sync"
     ],

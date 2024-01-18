@@ -1,3 +1,4 @@
+import os
 from typing import Union
 
 import cdblib
@@ -37,6 +38,9 @@ def maybe_upload_journal(
 
             print(f"Uploading {hints_filename} to {hints_s3_path}")
             upload_file_to_s3(hints_filename, hints_s3_path, endpoint)
+
+            print(f"Deleting local copy of {hints_filename}")
+            os.remove(hints_filename)
 
         print(f"Uploading {journal_filename} to {journal_s3_path}")
         upload_file_to_s3(journal_filename, journal_s3_path, endpoint)

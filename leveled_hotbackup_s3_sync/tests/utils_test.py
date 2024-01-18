@@ -9,9 +9,11 @@ from moto import mock_s3
 from leveled_hotbackup_s3_sync.utils import (
     download_bytes_from_s3,
     download_file_from_s3,
+    find_latest_ring,
     find_primary_partition,
+    get_owned_partitions,
+    get_ring_size,
     hash_bucket_key,
-    list_s3_object_versions,
     local_path_exists,
     parse_s3_url,
     riak_ring_increment,
@@ -21,6 +23,10 @@ from leveled_hotbackup_s3_sync.utils import (
     upload_bytes_to_s3,
     upload_file_to_s3,
 )
+
+TEST_RING_DIRECTORY = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring"
+TEST_RING_FILENAME = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring/riak_core_ring.default.20240116160656"
+TEST_RING_FILENAME2 = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59-ring/riak_core_ring.default.20231025141013"
 
 
 @pytest.fixture(name="s3_client")
@@ -65,21 +71,6 @@ def test_upload_bytes_to_s3(s3_client):
     upload_bytes_to_s3(b"Hello world!", "s3://test/world", None)
     s3_obj = s3_client.get_object(Bucket="test", Key="world")
     assert s3_obj["Body"].read() == b"Hello world!"
-
-
-def test_list_s3_object_versions(s3_client):
-    _ = s3_client
-    version1 = upload_bytes_to_s3(b"First version", "s3://test/listversion", None)
-    version2 = upload_bytes_to_s3(b"Second version", "s3://test/listversion", None)
-    version3 = upload_bytes_to_s3(b"Third version", "s3://test/listversion", None)
-
-    version_list = list_s3_object_versions("s3://test/listversion", None)
-    assert [x["VersionId"] for x in version_list] == [version3, version2, version1]
-
-    version1 = upload_bytes_to_s3(b"Only one version", "s3://test/listoneversion", None)
-
-    version_list = list_s3_object_versions("s3://test/listoneversion", None)
-    assert [x["VersionId"] for x in version_list] == [version1]
 
 
 def test_download_file_from_s3(s3_client):
@@ -173,6 +164,23 @@ def test_find_primary_partition():
         find_primary_partition(512, b"typedBucket", b"k", b"bucketType")
         == 1381575766539369164864420818427111292018498732032
     )
+
+
+def test_find_latest_ring():
+    with pytest.raises(ValueError) as exc:
+        find_latest_ring("/tmp")
+    assert str(exc.value) == "/tmp is not a valid Riak Ring location"
+    assert find_latest_ring(TEST_RING_DIRECTORY) == TEST_RING_FILENAME
+
+
+def test_get_ring_size():
+    assert get_ring_size(TEST_RING_FILENAME) == 64
+
+
+def test_get_owned_partitions():
+    assert get_owned_partitions(TEST_RING_FILENAME) == riak_ring_indexes(64)
+    partitions = get_owned_partitions(TEST_RING_FILENAME2)
+    assert len(partitions) == 51
 
 
 RING_SIZE_32 = [
