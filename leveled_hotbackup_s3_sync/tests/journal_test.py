@@ -22,13 +22,6 @@ def fixture_s3_client():
     with mock_s3():
         s3_client = boto3.client("s3", region_name="us-east-1")
         s3_client.create_bucket(Bucket="test")
-        s3_client.put_bucket_versioning(
-            Bucket="test",
-            VersioningConfiguration={
-                "MFADelete": "Disabled",
-                "Status": "Enabled",
-            },
-        )
         yield s3_client
 
 
@@ -119,7 +112,7 @@ def test_maybe_upload_journal(s3_client):
         Bucket="test",
         Key="maybe_upload_journal/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb",
     )
-    assert s3_head["VersionId"] == s3_obj["VersionId"]
+    assert s3_head["LastModified"] == s3_obj["LastModified"]
 
     # Now test hints file creation
     with tempfile.NamedTemporaryFile(suffix=".cdb") as file_handle:

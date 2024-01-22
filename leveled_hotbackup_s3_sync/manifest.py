@@ -1,6 +1,8 @@
 import os.path
 from typing import Union
 
+import botocore
+
 from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.utils import (
     download_bytes_from_s3,
@@ -12,7 +14,12 @@ from leveled_hotbackup_s3_sync.utils import (
 
 def read_manifest(manifest_path: str, endpoint: Union[str, None] = None) -> list:
     if is_s3_url(manifest_path):
-        manifest_data = download_bytes_from_s3(manifest_path, endpoint)
+        try:
+            manifest_data = download_bytes_from_s3(manifest_path, endpoint)
+        except botocore.exceptions.ClientError as err:
+            if err.response["Error"]["Code"] == "NoSuchKey":
+                raise ValueError("Could not open journal manifest. Check provided TAG or s3_path.") from err
+            raise err
     else:
         with open(manifest_path, "rb") as file_handle:
             manifest_data = file_handle.read()

@@ -223,7 +223,7 @@ def test_create_journal_key():
 
 # pylint: disable=protected-access
 class TestRiakObject:
-    def test__decode_maybe_binary(self):
+    def test_decode_maybe_binary(self):
         riak_object = RiakObject()
         assert riak_object._decode_maybe_binary(b"\x01test") == b"test"
         test_val = erlang.term_to_binary(["this", "is", "a", "test"])
