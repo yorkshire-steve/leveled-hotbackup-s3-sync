@@ -120,6 +120,10 @@ def test_read_manifest(s3_client):
         == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706"
     )
 
+    with pytest.raises(ValueError) as err:
+        _ = read_manifest("s3://test/doesnotexist", None)
+        assert str(err) == "Could not open journal manifest. Check provided TAG or s3_path."
+
 
 def test_save_local_manifest():
     with tempfile.NamedTemporaryFile() as file_handle:

@@ -1,5 +1,6 @@
 import argparse
 import os.path
+import sys
 from datetime import datetime
 from typing import Union
 
@@ -14,6 +15,7 @@ from leveled_hotbackup_s3_sync.utils import (
     RiakObject,
     create_journal_key,
     find_primary_partition,
+    get_ring_size,
     is_s3_url,
     str_to_bytes,
 )
@@ -56,7 +58,8 @@ def find_object(journal_filename: str, journal_key: bytes, endpoint: Union[str, 
 
 
 def retrieve_object(config: dict) -> None:
-    partition = find_primary_partition(config["ringsize"], config["bucket"], config["key"], config["buckettype"])
+    ringsize = get_ring_size(config["ring_filename"])
+    partition = find_primary_partition(ringsize, config["bucket"], config["key"], config["buckettype"])
     print(f"Primary partition for given bucket/key is {partition}\n")
 
     manifest_s3_path = os.path.join(config["s3_path"], str(partition), f"journal/journal_manifest/{config['tag']}.man")
@@ -82,6 +85,8 @@ def retrieve_object(config: dict) -> None:
             for idx, sibling in enumerate(riak_object.siblings):
                 print(f"Sibling {idx}:")
                 print_sibling(sibling)
+    else:
+        print("Could not find key in hotbackup.")
 
 
 def print_sibling(sibling: dict) -> None:
@@ -93,13 +98,12 @@ def print_sibling(sibling: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="Riak Backup Retrieve",
+        prog="Riak HotBackup Retrieve",
         description="Retrieve a single object from Riak hot-backup",
     )
     parser.add_argument("-b", "--bucket", type=str_to_bytes, required=True, help="Bucket")
     parser.add_argument("-k", "--key", type=str_to_bytes, required=True, help="Key")
     parser.add_argument("-t", "--buckettype", type=str_to_bytes, required=False, help="Bucket Type")
-    parser.add_argument("-r", "--ringsize", type=int, required=True, help="Riak ring size")
     parser.add_argument(
         "tag",
         type=str,
@@ -119,6 +123,12 @@ def main() -> None:
     config["bucket"] = args.bucket
     config["key"] = args.key
     config["buckettype"] = args.buckettype
-    config["ringsize"] = args.ringsize
 
     retrieve_object(config)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as err:  # pylint: disable=broad-exception-caught
+        print(f"Error: {err}", file=sys.stderr)
