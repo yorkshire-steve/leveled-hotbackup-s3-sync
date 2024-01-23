@@ -45,9 +45,10 @@ def test_get_sqn():
                 456,
             )
         file_handle.flush()
-        assert get_sqn(file_handle.name, b"testBucket", b"testKey1") == 123
-        assert get_sqn(file_handle.name, b"testBucket", b"testKey1000") == 1230
-        assert get_sqn(file_handle.name, b"typedBucket", b"typedKey933", b"testType") == 456
+        with cdblib.Reader.from_file_path(file_handle.name) as reader:
+            assert get_sqn(reader, b"testBucket", b"testKey1") == 123
+            assert get_sqn(reader, b"testBucket", b"testKey1000") == 1230
+            assert get_sqn(reader, b"typedBucket", b"typedKey933", b"testType") == 456
 
 
 def test_e2e_hints_files():
@@ -56,6 +57,7 @@ def test_e2e_hints_files():
     )
     with tempfile.NamedTemporaryFile() as file_handle:
         create_hints_file(file_handle.name, journal_keys)
-        assert get_sqn(file_handle.name, b"testBucket", b"testKey75") == 976
-        assert get_sqn(file_handle.name, b"testBucket", b"testKey9120") == 1382
-        assert get_sqn(file_handle.name, b"typedBucket", b"typedKey52", b"testType") == 1419
+        with cdblib.Reader.from_file_path(file_handle.name) as reader:
+            assert get_sqn(reader, b"testBucket", b"testKey75") == 976
+            assert get_sqn(reader, b"testBucket", b"testKey9120") == 1382
+            assert get_sqn(reader, b"typedBucket", b"typedKey52", b"testType") == 1419

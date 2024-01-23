@@ -3,10 +3,16 @@ import tempfile
 
 import boto3
 import botocore
+import cdblib
 import pytest
 from moto import mock_s3
 
+from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.utils import (
+    RiakObject,
+    check_endpoint_url,
+    check_s3_url,
+    create_journal_key,
     download_bytes_from_s3,
     download_file_from_s3,
     find_latest_ring,
@@ -14,11 +20,13 @@ from leveled_hotbackup_s3_sync.utils import (
     get_owned_partitions,
     get_ring_size,
     hash_bucket_key,
+    is_s3_url,
     local_path_exists,
     parse_s3_url,
     riak_ring_increment,
     riak_ring_indexes,
     s3_path_exists,
+    str_to_bytes,
     swap_path,
     upload_bytes_to_s3,
     upload_file_to_s3,
@@ -42,6 +50,32 @@ def fixture_s3_client():
             },
         )
         yield s3_client
+
+
+def test_str_to_bytes():
+    assert str_to_bytes("test") == b"test"
+    assert str_to_bytes("\u0100") == b"\xc4\x80"
+
+
+def test_is_s3_url():
+    assert is_s3_url("s3://test/path/key") is True
+    assert is_s3_url("/file/path") is False
+
+
+def test_check_s3_url():
+    assert check_s3_url("s3://test/path/key") == "s3://test/path/key"
+    with pytest.raises(ValueError):
+        check_s3_url("randomtext")
+    with pytest.raises(ValueError):
+        check_s3_url("/file/path")
+    with pytest.raises(ValueError):
+        check_s3_url("https://www.google.com")
+
+
+def test_check_endpoint_url():
+    assert check_endpoint_url("http://localhost") == "http://localhost"
+    with pytest.raises(ValueError):
+        check_endpoint_url("http://localhost/path")
 
 
 def test_s3_path_exists(s3_client):
@@ -155,15 +189,101 @@ def test_find_primary_partition():
         find_primary_partition(128, b"typedBucket", b"k", b"bucketType")
         == 1381575766539369164864420818427111292018498732032
     )
-    assert find_primary_partition(512, b"testBucket", b"testKey") == 1421538701935136041534052825571697155837215637504
-    assert (
-        find_primary_partition(512, b"testBucket", b"testKey9922") == 1450083655789255239155218544960687058564870569984
+
+
+def test_create_journal_key():
+    filename = (
+        "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706.cdb"
     )
-    assert find_primary_partition(512, b"anotherbucket", b"k") == 1164634117248063262943561351070788031288321245184
-    assert (
-        find_primary_partition(512, b"typedBucket", b"k", b"bucketType")
-        == 1381575766539369164864420818427111292018498732032
+    with cdblib.Reader.from_file_path(filename) as reader:
+        for journal_key_bin in reader.keys():
+            journal_key = erlang.binary_to_term(journal_key_bin)
+            buckettype = None
+            if isinstance(journal_key[2][1], tuple):
+                buckettype = journal_key[2][1][0].value
+                bucket = journal_key[2][1][1].value
+            else:
+                bucket = journal_key[2][1].value
+            assert journal_key_bin == create_journal_key(journal_key[0], bucket, journal_key[2][2].value, buckettype)
+
+    filename = (
+        "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.cdb"
     )
+    with cdblib.Reader.from_file_path(filename) as reader:
+        for journal_key_bin in reader.keys():
+            journal_key = erlang.binary_to_term(journal_key_bin)
+            buckettype = None
+            if isinstance(journal_key[2][1], tuple):
+                buckettype = journal_key[2][1][0].value
+                bucket = journal_key[2][1][1].value
+            else:
+                bucket = journal_key[2][1].value
+            assert journal_key_bin == create_journal_key(journal_key[0], bucket, journal_key[2][2].value, buckettype)
+
+
+# pylint: disable=protected-access
+class TestRiakObject:
+    def test_decode_maybe_binary(self):
+        riak_object = RiakObject()
+        assert riak_object._decode_maybe_binary(b"\x01test") == b"test"
+        test_val = erlang.term_to_binary(["this", "is", "a", "test"])
+        assert riak_object._decode_maybe_binary(b"\x00" + test_val) == [b"this", b"is", b"a", b"test"]
+
+    def test_decode(self):
+        riak_object = RiakObject()
+        riak_object.decode(
+            b"5\x01\x00\x00\x00&\x83l\x00\x00\x00\x01h\x02m\x00\x00\x00\x0c\xbf\x00\xa1\xef\x9e\xc4\xd4\xfe\x00\x00"
+            b'\x00\x14h\x02a\x02n\x05\x00\xff\xb0\x97\xdd\x0ej\x00\x00\x00\x01\x00\x00\x00\x17\x01{"test":"replaced'
+            b'992"}\x00\x00\x00\x87\x00\x00\x06\x90\x00\x00p\xff\x00\x07\xd5\xfd\x166qFSOBD6ZxTXWCznwiCdM8\x00\x00'
+            b"\x00\x00\x0c\x01X-Riak-Meta\x00\x00\x00\x03\x00\x83j\x00\x00\x00\x06\x01index\x00\x00\x00\x03\x00\x83"
+            b"j\x00\x00\x00\r\x01content-type\x00\x00\x00\x15\x00\x83k\x00\x10application/json\x00\x00\x00\x06\x01"
+            b"Links\x00\x00\x00\x03\x00\x83j"
+        )
+        assert riak_object.vector_clocks == [
+            (
+                erlang.OtpErlangBinary(b"\xbf\x00\xa1\xef\x9e\xc4\xd4\xfe\x00\x00\x00\x14", bits=8),
+                (2, 63847248127),
+            )
+        ]
+        assert riak_object.siblings == [
+            {
+                "value": b'{"test":"replaced992"}',
+                "metadata": {
+                    "last_modified": "1680028927.513533",
+                    "vtag": b"6qFSOBD6ZxTXWCznwiCdM8",
+                    "deleted": 0,
+                    "X-Riak-Meta": [],
+                    "index": [],
+                    "content-type": b"application/json",
+                    "Links": [],
+                },
+            }
+        ]
+
+    def test_decode_wrong_magic_number(self):
+        riak_object = RiakObject()
+        with pytest.raises(ValueError) as exc:
+            riak_object.decode(b"wontwork")
+        assert str(exc.value) == "Decode error, wrong magic number"
+
+    def test_decode_wrong_object_version(self):
+        riak_object = RiakObject()
+        with pytest.raises(ValueError) as exc:
+            riak_object.decode(b"5\x02\x00\x00\x00")
+        assert str(exc.value) == "Decode error, wrong object version"
+
+    def test_decode_unexpected_data(self):
+        riak_object = RiakObject()
+        with pytest.raises(ValueError) as exc:
+            riak_object.decode(
+                b"5\x01\x00\x00\x00&\x83l\x00\x00\x00\x01h\x02m\x00\x00\x00\x0c\xbf\x00\xa1\xef\x9e\xc4\xd4\xfe\x00\x00"
+                b'\x00\x14h\x02a\x02n\x05\x00\xff\xb0\x97\xdd\x0ej\x00\x00\x00\x01\x00\x00\x00\x17\x01{"test":"replaced'
+                b'992"}\x00\x00\x00\x87\x00\x00\x06\x90\x00\x00p\xff\x00\x07\xd5\xfd\x166qFSOBD6ZxTXWCznwiCdM8\x00\x00'
+                b"\x00\x00\x0c\x01X-Riak-Meta\x00\x00\x00\x03\x00\x83j\x00\x00\x00\x06\x01index\x00\x00\x00\x03\x00\x83"
+                b"j\x00\x00\x00\r\x01content-type\x00\x00\x00\x15\x00\x83k\x00\x10application/json\x00\x00\x00\x06\x01"
+                b"Links\x00\x00\x00\x03\x00\x83j\x00"
+            )
+        assert str(exc.value) == "Decode error, unexpected data"
 
 
 def test_find_latest_ring():

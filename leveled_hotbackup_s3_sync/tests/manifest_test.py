@@ -1,13 +1,13 @@
 import tempfile
 
 import boto3
+import botocore
 import pytest
 from moto import mock_s3
 
 from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.manifest import (
     read_manifest,
-    read_s3_manifest,
     save_local_manifest,
     upload_new_manifest,
 )
@@ -79,7 +79,7 @@ MANIFEST_DATA = [
 ]
 
 
-def test_read_manifest():
+def test_read_manifest(s3_client):
     manifest_filename = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_manifest/0.man"
     manifest = read_manifest(manifest_filename)
 
@@ -100,12 +100,9 @@ def test_read_manifest():
         == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706"
     )
 
-
-def test_read_s3_manifest(s3_client):
-    manifest_filename = "/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_manifest/0.man"
     s3_client.upload_file(manifest_filename, "test", "reads3manifest")
 
-    manifest = read_s3_manifest("s3://test/reads3manifest", None)
+    manifest = read_manifest("s3://test/reads3manifest", None)
 
     assert len(manifest) == 3
     assert manifest[0][0] == 972
@@ -122,6 +119,17 @@ def test_read_s3_manifest(s3_client):
     assert (
         manifest[2][1]
         == b"/tmp/a5017381-4c3e-46e6-bd02-342c4b894b59/0/journal/journal_files/0_50f4666b-6ad8-4b6f-9e2a-23a235c82706"
+    )
+
+    with pytest.raises(ValueError) as err:
+        read_manifest("s3://test/doesnotexist", None)
+    assert str(err.value) == "Could not open journal manifest. Check provided TAG or s3_path."
+
+    with pytest.raises(botocore.exceptions.ClientError) as err:
+        read_manifest("s3://blah/blah", None)
+    assert (
+        str(err.value)
+        == "An error occurred (NoSuchBucket) when calling the GetObject operation: The specified bucket does not exist"
     )
 
 

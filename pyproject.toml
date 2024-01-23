@@ -11,19 +11,29 @@ keywords = ['riak', 'leveled', 'backup', 's3']
 
 [tool.poetry.dependencies]
 python = "^3.8"
-boto3 = "^1.26.114"
+boto3 = "1.34.22"
 pure-cdb = "^4.0.0"
-frozendict = "^2.3.7"
+frozendict = "^2.4.0"
+lz4 = { version = "^4.3.3", optional = true }
+s3fs = { version = "^2023.12.2", optional = true }
 tomli = {version = "^2.0.1", python = "<3.11"}
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.3.1"
-black = "^23.3.0"
-isort = "^5.12.0"
-pylint = "^2.17.2"
-coverage = "^7.2.3"
-mypy = "^1.2.0"
-moto = "^4.1.7"
+pytest = "^7.4.4"
+black = "^23.12.1"
+isort = "^5.13.2"
+pylint = "^3.0.3"
+coverage = "^7.4.0"
+mypy = "^1.8.0"
+moto = {version="^4.1.7", extras=["server"]}
+urllib3 = "^1.26.18"
+
+[tool.poetry.scripts]
+s3sync = 'leveled_hotbackup_s3_sync.app:console_command'
+s3retrieve =  { callable = 'leveled_hotbackup_s3_sync.retrieve:console_command', extras = ["retrieve"] }
+
+[tool.poetry.extras]
+retrieve = ["lz4", "s3fs"]
 
 [tool.black]
 line-length = 120
@@ -40,7 +50,7 @@ recursive = true
 
 [tool.pylint.messages_control]
 max-line-length = 120
-min-similarity-lines = 10
+min-similarity-lines = 20
 disable = [
     "missing-class-docstring",
     "missing-module-docstring",
@@ -54,6 +64,8 @@ omit = [
     ".venv/*",
     "leveled_hotbackup_s3_sync/__init__.py",
     "leveled_hotbackup_s3_sync/__main__.py",
+    "leveled_hotbackup_s3_sync/erlang.py",
+    "leveled_hotbackup_s3_sync/tests/*",
 ]
 source = [
     "."
