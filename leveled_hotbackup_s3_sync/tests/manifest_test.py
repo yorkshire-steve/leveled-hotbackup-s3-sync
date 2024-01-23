@@ -1,6 +1,7 @@
 import tempfile
 
 import boto3
+import botocore
 import pytest
 from moto import mock_s3
 
@@ -121,8 +122,15 @@ def test_read_manifest(s3_client):
     )
 
     with pytest.raises(ValueError) as err:
-        _ = read_manifest("s3://test/doesnotexist", None)
-        assert str(err) == "Could not open journal manifest. Check provided TAG or s3_path."
+        read_manifest("s3://test/doesnotexist", None)
+    assert str(err.value) == "Could not open journal manifest. Check provided TAG or s3_path."
+
+    with pytest.raises(botocore.exceptions.ClientError) as err:
+        read_manifest("s3://blah/blah", None)
+    assert (
+        str(err.value)
+        == "An error occurred (NoSuchBucket) when calling the GetObject operation: The specified bucket does not exist"
+    )
 
 
 def test_save_local_manifest():

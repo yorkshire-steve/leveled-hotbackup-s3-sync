@@ -1,6 +1,7 @@
 import argparse
 import os
 import os.path
+import sys
 
 from leveled_hotbackup_s3_sync.config import read_config
 from leveled_hotbackup_s3_sync.journal import (
@@ -82,3 +83,13 @@ def main() -> None:
 
     if args.action == "restore":
         restore(config)
+
+
+def console_command() -> None:
+    retcode = 1
+    try:
+        main()
+        retcode = 0
+    except Exception as err:  # pylint: disable=broad-exception-caught
+        print(f"Error: {err}", file=sys.stderr)
+    sys.exit(retcode)

@@ -99,7 +99,7 @@ def print_sibling(sibling: dict) -> None:
     last_modified = datetime.fromtimestamp(float(sibling["metadata"]["last_modified"]))
     vtag = sibling["metadata"]["vtag"].decode("utf-8")
     print(f"Last Modified: {last_modified}. Vtag: {vtag}\n")
-    print("Object value:\n\n", sibling["value"], "\n")
+    print("Object value:\n\n", sibling["value"], "\n", sep="")
 
 
 def write_sibling(filename: str, sibling: dict) -> None:
@@ -141,8 +141,15 @@ def main() -> None:
     retrieve_object(config)
 
 
-if __name__ == "__main__":
+def console_command() -> None:
+    retcode = 1
     try:
         main()
+        retcode = 0
     except Exception as err:  # pylint: disable=broad-exception-caught
         print(f"Error: {err}", file=sys.stderr)
+    sys.exit(retcode)
+
+
+if __name__ == "__main__":
+    console_command()
