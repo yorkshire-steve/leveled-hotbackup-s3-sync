@@ -79,12 +79,18 @@ def retrieve_object(config: dict) -> None:
             print(f"Could not find bucket/key in {journal_filename}\n")
         elif num_siblings == 1:
             print("Found object in journal.")
-            print_sibling(riak_object.siblings[0])
+            if config["output"]:
+                write_sibling(config["output"], riak_object.siblings[0])
+            else:
+                print_sibling(riak_object.siblings[0])
         else:
             print(f"Found {num_siblings} siblings.\n")
             for idx, sibling in enumerate(riak_object.siblings):
-                print(f"Sibling {idx}:")
-                print_sibling(sibling)
+                if config["output"]:
+                    write_sibling(f"{config['output']}.{idx}", sibling)
+                else:
+                    print(f"Sibling {idx}:")
+                    print_sibling(sibling)
     else:
         print("Could not find key in hotbackup.")
 
@@ -96,6 +102,12 @@ def print_sibling(sibling: dict) -> None:
     print("Object value:\n\n", sibling["value"], "\n")
 
 
+def write_sibling(filename: str, sibling: dict) -> None:
+    print(f"Writing object to file {filename}")
+    with open(filename, "wb") as file_handle:
+        file_handle.write(sibling["value"])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="Riak HotBackup Retrieve",
@@ -104,6 +116,7 @@ def main() -> None:
     parser.add_argument("-b", "--bucket", type=str_to_bytes, required=True, help="Bucket")
     parser.add_argument("-k", "--key", type=str_to_bytes, required=True, help="Key")
     parser.add_argument("-t", "--buckettype", type=str_to_bytes, required=False, help="Bucket Type")
+    parser.add_argument("-o", "--output", type=str, required=False, help="Output Filename")
     parser.add_argument(
         "tag",
         type=str,
@@ -123,6 +136,7 @@ def main() -> None:
     config["bucket"] = args.bucket
     config["key"] = args.key
     config["buckettype"] = args.buckettype
+    config["output"] = args.output
 
     retrieve_object(config)
 
