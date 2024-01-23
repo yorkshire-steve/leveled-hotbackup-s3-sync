@@ -183,6 +183,7 @@ def test_retrieve_object(s3_client, capsys):  # pylint: disable=unused-argument
     captured = capsys.readouterr()
 
     assert "Found object in journal." in captured.out
+    assert 'b\'{"test":"secondUpdate1"}\'' in captured.out
 
     config["key"] = b"doesnotexist"
     retrieve_object(config)
