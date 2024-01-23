@@ -29,8 +29,8 @@ moto = {version="^4.1.7", extras=["server"]}
 urllib3 = "^1.26.18"
 
 [tool.poetry.scripts]
-s3sync = 'leveled_hotbackup_s3_sync.app:main'
-retrieve =  { callable = 'leveled_hotbackup_s3_sync.retrieve:main', extras = ["retrieve"] }
+s3sync = 'leveled_hotbackup_s3_sync.app:console_command'
+s3retrieve =  { callable = 'leveled_hotbackup_s3_sync.retrieve:console_command', extras = ["retrieve"] }
 
 [tool.poetry.extras]
 retrieve = ["lz4", "s3fs"]
