@@ -1,6 +1,6 @@
 SHELL:=/bin/bash -O globstar
 .SHELLFLAGS = -ec
-.PHONY: localstack localstack-down
+.PHONY: localstack localstack-down testdata
 
 install:
 	poetry install --sync --all-extras
@@ -67,4 +67,4 @@ localstack-down:
 	cd localstack && docker compose down --remove-orphans || true
 
 testdata:
-	tar xf ./leveled_hotbackup_s3_sync/tests/data/testdata.tgz -C /tmp
+	tar xf ./testdata/testdata.tgz -C /tmp
