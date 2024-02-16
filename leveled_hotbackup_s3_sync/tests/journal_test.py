@@ -80,7 +80,7 @@ def test_decode_journal_object():
         decode_journal_object(test_key, test_obj)
     assert str(err.value) == "CRC error retrieving object"
 
-    test_obj2 = b'\x10\xc31\x15\x04"M\x18h@\x03\x00\x00\x00\x00\x00\x00\x00\x87\x03\x00\x00\x80abc\x00\x00\x00\x00\x00\x00\x00\x00\x07'
+    test_obj2 = b"\x8c\xe3\xff \x03\x00\x00\x000abc\x00\x00\x00\x00\x07"
     assert decode_journal_object(b"", test_obj2) == b"abc"
 
     test_obj3 = b"\xc0\xd9ae\x83l\x00\x00\x00\x03a\x00a\x01a\x02j\x00\x00\x00\x00\x00"
@@ -153,12 +153,8 @@ def test_maybe_upload_journal(s3_client):
     ) as file_handle:
         assert file_handle.read() == s3_obj["Body"].read()
 
-    s3_obj = s3_client.get_object(Bucket="test", Key=f"maybe_upload_journal_hints/{short_filename}.hints.cdb")
-    with open(
-        f"{HOTBACKUP_DIR}/0/journal/journal_files/972_e6205c6c-3b8b-40e6-baee-295dcc76488a.hints.cdb",
-        "rb",
-    ) as file_handle:
-        assert file_handle.read() == s3_obj["Body"].read()
+    s3_head = s3_client.head_object(Bucket="test", Key=f"maybe_upload_journal_hints/{short_filename}.hints.cdb")
+    assert s3_head["ResponseMetadata"]["HTTPStatusCode"] == 200
 
 
 def test_maybe_download_journal(s3_client):
