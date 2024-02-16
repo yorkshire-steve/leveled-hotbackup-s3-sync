@@ -3,7 +3,7 @@ import zlib
 from typing import Union
 
 import cdblib
-import lz4.frame
+import lz4.block
 
 from leveled_hotbackup_s3_sync import erlang
 from leveled_hotbackup_s3_sync.hints import create_hints_file
@@ -36,7 +36,7 @@ def decode_journal_object(journal_key: bytes, journal_obj: bytes):
     journal_binary = journal_obj[4 : journal_binary_len - key_change_length]
     if is_compressed:
         if is_lz4:
-            journal_binary = lz4.frame.decompress(journal_binary)
+            journal_binary = lz4.block.decompress(journal_binary)
         else:
             journal_binary = zlib.decompress(journal_binary)
     if is_binary:
